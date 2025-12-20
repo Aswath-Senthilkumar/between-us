@@ -61,7 +61,10 @@ body {
   color: var(--color-ink);
   cursor: pointer;
   transition: transform 0.1s;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   text-decoration: none;
 }
 
