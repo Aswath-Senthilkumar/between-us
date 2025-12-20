@@ -1,17 +1,21 @@
-@import url('https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap');
+@import "tailwindcss";
 
-:root {
+@theme {
+  /* Font */
+  --font-hand: 'Patrick Hand', cursive;
+  --font-sans: var(--font-hand);
+
+  /* Colors */
   --color-paper: #fdfbf7;
   --color-ink: #2b2b2b;
   --color-accent-pink: #ffcfd2;
   --color-accent-blue: #cfebff;
   --color-accent-green: #e0fadd;
   --color-accent-yellow: #fdfd96;
-  
-  /* Font */
-  --font-hand: 'Patrick Hand', cursive;
+}
 
-  /* Shadows for depth */
+:root {
+  /* Shadows (keep in root or move to theme if want shadow-* utilities) */
   --shadow-paper: 2px 3px 5px rgba(0,0,0,0.1), 0 0 1px rgba(0,0,0,0.1);
   --shadow-float: 5px 8px 15px rgba(0,0,0,0.15);
 }

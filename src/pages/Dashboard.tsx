@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
-import { Users } from "lucide-react";
+import { Users, Settings, XCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import type { Puzzle } from "../types";
 
 export default function Dashboard() {
   const { profile, refreshProfile } = useAuth();
+  const navigate = useNavigate();
   const [partnerEmail, setPartnerEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -66,8 +68,38 @@ export default function Dashboard() {
 
   // VIEW 1: No Partner Linked
   if (!profile.partner_id) {
+    const handleDismissNotification = async () => {
+      await supabase.rpc("dismiss_notification");
+      refreshProfile();
+    };
+
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
+        <div className="absolute top-4 right-4 z-10">
+          <Settings
+            className="wobbly-icon w-8 h-8 text-ink cursor-pointer hover:rotate-12 transition-transform"
+            onClick={() => navigate("/settings")}
+          />
+        </div>
+
+        {profile.system_notification && (
+          <div className="w-full max-w-md mb-6 sketched-box bg-red-50 border-red-200 text-red-700 animate-in slide-in-from-top-4">
+            <div className="flex items-start gap-4">
+              <XCircle className="shrink-0 mt-1" />
+              <div className="flex-1">
+                <h3 className="font-bold text-lg mb-1">Notification</h3>
+                <p>{profile.system_notification}</p>
+              </div>
+              <button
+                onClick={handleDismissNotification}
+                className="text-sm underline opacity-70 hover:opacity-100"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="sketched-box w-full max-w-md text-center space-y-6">
           <Users className="wobbly-icon h-16 w-16 mx-auto text-ink" />
 
@@ -126,6 +158,13 @@ export default function Dashboard() {
   // VIEW 2: Partner Linked (Game Dashboard)
   return (
     <div className="p-4 max-w-md mx-auto space-y-6 flex flex-col items-center justify-center min-h-[80vh]">
+      <div className="absolute top-4 right-4 z-10">
+        <Settings
+          className="wobbly-icon w-8 h-8 text-ink cursor-pointer hover:rotate-12 transition-transform"
+          onClick={() => navigate("/settings")}
+        />
+      </div>
+
       <div className="text-center mb-8">
         <h1 className="text-4xl mb-2">Hello, {profile.username || "Love"}</h1>
         <p className="opacity-60">{formattedDate}</p>

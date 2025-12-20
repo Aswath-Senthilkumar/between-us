@@ -17,6 +17,14 @@ exception
   when duplicate_column then null;
 end $$;
 
+-- Safely add system_notification column
+do $$ 
+begin 
+  alter table profiles add column if not exists system_notification text;
+exception
+  when duplicate_column then null;
+end $$;
+
 -- RLS for Profiles
 alter table profiles enable row level security;
 
@@ -119,5 +127,37 @@ begin
   update profiles
   set partner_id = current_user_id
   where id = target_user_id;
+end;
+$$ language plpgsql security definer;
+
+-- Dismiss Notification Function
+create or replace function dismiss_notification()
+returns void as $$
+begin
+  update profiles
+  set system_notification = null
+  where id = auth.uid();
+end;
+$$ language plpgsql security definer;
+
+-- Delete Account Function
+create or replace function delete_account()
+returns void as $$
+declare
+  partner_id_val uuid;
+begin
+  -- Get partner id
+  select partner_id into partner_id_val from profiles where id = auth.uid();
+
+  -- If partner exists, notify them and unlink
+  if partner_id_val is not null then
+    update profiles
+    set partner_id = null,
+        system_notification = 'Your partner has left the platform.'
+    where id = partner_id_val;
+  end if;
+
+  -- Delete current user's profile
+  delete from profiles where id = auth.uid();
 end;
 $$ language plpgsql security definer;

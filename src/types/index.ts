@@ -9,3 +9,12 @@ export interface Puzzle {
   guesses: string[];
   is_solved: boolean;
 }
+
+export interface Profile {
+  id: string;
+  email: string | null;
+  username: string | null;
+  partner_id: string | null;
+  system_notification?: string | null;
+}
+

@@ -12,6 +12,7 @@ import Login from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import SetPuzzle from "./pages/SetPuzzle";
 import Game from "./pages/Game";
+import Settings from "./pages/Settings";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -59,6 +60,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Game />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Settings />
           </ProtectedRoute>
         }
       />
