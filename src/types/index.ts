@@ -9,6 +9,9 @@ export interface Puzzle {
   secret_message: string | null;
   guesses: string[];
   is_solved: boolean;
+  message_requested?: boolean;
+  message_revealed?: boolean;
+  message_viewed?: boolean;
 }
 
 export interface Profile {

@@ -24,10 +24,11 @@ export default function Game() {
   );
 
   // Fetch puzzle (today or specific date)
+  // Fetch puzzle (today or specific date)
   useEffect(() => {
     if (!profile) return;
-    const fetchPuzzle = async () => {
-      setLoading(true);
+    const fetchPuzzle = async (showLoading = true) => {
+      if (showLoading) setLoading(true);
       // Use query param date OR today's date
       const targetDate = dateParam || getLocalDate();
 
@@ -48,9 +49,33 @@ export default function Game() {
       } else {
         setPuzzle(null);
       }
-      setLoading(false);
+      if (showLoading) setLoading(false);
     };
-    fetchPuzzle();
+
+    fetchPuzzle(true);
+
+    // Subscribe to changes for this puzzle (mainly for message_revealed)
+    const channel = supabase
+      .channel("game-puzzle-updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "puzzles",
+          filter: `solver_id=eq.${profile.id}`,
+        },
+        () => {
+          // Check if it matches current date logic, simplified: just refetch or update state
+          // For simplicity and correctness, let's just refetch if we have a puzzle loaded
+          fetchPuzzle(false);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [profile, dateParam]);
 
   const saveProgress = useCallback(
@@ -100,6 +125,18 @@ export default function Game() {
     },
     [currentGuess, gameStatus, puzzle, guesses, saveProgress]
   );
+
+  const handleRequestMessage = async () => {
+    if (!puzzle) return;
+    const { error } = await supabase
+      .from("puzzles")
+      .update({ message_requested: true })
+      .eq("id", puzzle.id);
+
+    if (!error) {
+      setPuzzle({ ...puzzle, message_requested: true });
+    }
+  };
 
   // Physical Keyboard listener
   useEffect(() => {
@@ -205,11 +242,37 @@ export default function Game() {
       )}
 
       {gameStatus === "lost" && (
-        <div className="sketched-box bg-gray-200 mb-4">
-          <h3>Game Over</h3>
-          <p>
-            The word was: <b>{puzzle.target_word}</b>
+        <div className="sketched-box bg-gray-200 mb-4 text-center">
+          <h3 className="text-red-500 font-bold mb-2">Game Over</h3>
+          <p className="mb-2">
+            The word was:{" "}
+            <span className="font-mono font-bold tracking-widest">
+              {puzzle.target_word}
+            </span>
           </p>
+          <div className="border-t border-gray-400 my-3 pt-2">
+            {puzzle.message_revealed ? (
+              <RenderRevealedMessage puzzle={puzzle} />
+            ) : (
+              <>
+                <p className="text-sm opacity-70 mb-1">
+                  You missed the hidden message!
+                </p>
+                {puzzle.message_requested ? (
+                  <p className="font-bold text-accent-blue animate-pulse">
+                    Request sent! Waiting for partner... ⏳
+                  </p>
+                ) : (
+                  <button
+                    onClick={handleRequestMessage}
+                    className="sketched-btn bg-accent-blue text-sm py-1 px-4 mt-1"
+                  >
+                    Request Message 📬
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -275,5 +338,29 @@ export default function Game() {
         )}
       </div>
     </PageLayout>
+  );
+}
+
+// Helper component to handle side effect of marking as viewed
+function RenderRevealedMessage({ puzzle }: { puzzle: Puzzle }) {
+  useEffect(() => {
+    if (puzzle.message_revealed && !puzzle.message_viewed) {
+      supabase
+        .from("puzzles")
+        .update({ message_viewed: true })
+        .eq("id", puzzle.id)
+        .then();
+    }
+  }, [puzzle]);
+
+  return (
+    <div className="animate-in fade-in zoom-in duration-500">
+      <p className="text-sm opacity-70 mb-1">Partner revealed the message!</p>
+      <div className="bg-white/50 p-2 rounded mt-2">
+        <p className="font-hand text-xl whitespace-pre-wrap">
+          {puzzle.secret_message}
+        </p>
+      </div>
+    </div>
   );
 }
