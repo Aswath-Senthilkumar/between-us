@@ -1,0 +1,233 @@
+import { useEffect, useState, useCallback } from "react";
+import { supabase } from "../lib/supabase";
+import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Lock, Unlock } from "lucide-react";
+import type { Puzzle } from "../types";
+
+const LETTERS = "QWERTYUIOPASDFGHJKLZXCVBNM".split("");
+
+export default function Game() {
+  const { profile } = useAuth();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
+  const [guesses, setGuesses] = useState<string[]>([]);
+  const [currentGuess, setCurrentGuess] = useState("");
+  const [gameStatus, setGameStatus] = useState<"playing" | "won" | "lost">(
+    "playing"
+  );
+
+  // Fetch today's puzzle
+  useEffect(() => {
+    if (!profile) return;
+    const fetchPuzzle = async () => {
+      const today = new Date().toISOString().split("T")[0];
+      const { data } = await supabase
+        .from("puzzles")
+        .select("*")
+        .in("solver_id", [profile.id])
+        .eq("date", today)
+        .single();
+
+      if (data) {
+        setPuzzle(data);
+        if (data.guesses) setGuesses(data.guesses);
+        if (data.is_solved) setGameStatus("won");
+        else if (data.guesses && data.guesses.length >= 6)
+          setGameStatus("lost");
+      }
+      setLoading(false);
+    };
+    fetchPuzzle();
+  }, [profile]);
+
+  const saveProgress = useCallback(
+    async (newGuesses: string[], solved: boolean) => {
+      if (!puzzle) return;
+      await supabase
+        .from("puzzles")
+        .update({
+          guesses: newGuesses,
+          is_solved: solved,
+        })
+        .eq("id", puzzle.id);
+    },
+    [puzzle]
+  );
+
+  const handleKeyPress = useCallback(
+    async (key: string) => {
+      if (gameStatus !== "playing" || !puzzle) return;
+
+      if (key === "BACKSPACE") {
+        setCurrentGuess((prev) => prev.slice(0, -1));
+        return;
+      }
+      if (key === "ENTER") {
+        if (currentGuess.length !== 5) return;
+
+        const newGuesses = [...guesses, currentGuess];
+        setGuesses(newGuesses);
+        setCurrentGuess("");
+
+        const won = currentGuess === puzzle.target_word;
+        if (won) {
+          setGameStatus("won");
+          await saveProgress(newGuesses, true);
+        } else if (newGuesses.length >= 6) {
+          setGameStatus("lost");
+          await saveProgress(newGuesses, false);
+        } else {
+          await saveProgress(newGuesses, false);
+        }
+        return;
+      }
+      if (currentGuess.length < 5 && /^[A-Z]$/.test(key)) {
+        setCurrentGuess((prev) => prev + key);
+      }
+    },
+    [currentGuess, gameStatus, puzzle, guesses, saveProgress]
+  );
+
+  // Physical Keyboard listener
+  useEffect(() => {
+    const listener = (e: KeyboardEvent) => {
+      const key = e.key.toUpperCase();
+      if (key === "ENTER" || key === "BACKSPACE" || /^[A-Z]$/.test(key)) {
+        handleKeyPress(key);
+      }
+    };
+    window.addEventListener("keyup", listener);
+    return () => window.removeEventListener("keyup", listener);
+  }, [handleKeyPress]);
+
+  if (loading) return <div className="p-10 text-center">Loading puzzle...</div>;
+
+  if (!puzzle) {
+    return (
+      <div className="p-10 flex flex-col items-center text-center">
+        <Lock className="wobbly-icon h-16 w-16 mb-4 text-gray-400" />
+        <h2>No puzzle yet!</h2>
+        <p>Tell your partner to set the daily word.</p>
+        <button onClick={() => navigate("/")} className="mt-6 sketched-btn">
+          Back Home
+        </button>
+      </div>
+    );
+  }
+
+  // Helper to get logic for a cell
+  const getCellClass = (letter: string, index: number, rowIndex: number) => {
+    // If current row being typed
+    if (rowIndex === guesses.length) {
+      return letter ? "border-ink animate-bounce" : "border-gray-300";
+    }
+    // If future row
+    if (rowIndex > guesses.length) return "border-gray-200";
+
+    // If past row - check colors
+    const guess = guesses[rowIndex];
+    const target = puzzle.target_word;
+    const guessLetter = guess[index];
+
+    if (guessLetter === target[index]) return "bg-accent-green border-ink";
+    if (target.includes(guessLetter)) return "bg-accent-yellow border-ink";
+    return "bg-gray-200 border-gray-400 opacity-50";
+  };
+
+  return (
+    <div className="flex flex-col min-h-screen max-w-md mx-auto p-4">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-2">
+        <button onClick={() => navigate("/")} className="p-2">
+          <ArrowLeft />
+        </button>
+        <h1 className="text-xl">Daily Puzzle</h1>
+        <div className="w-8"></div>
+      </div>
+
+      {/* Message Unlock Overlay or Section */}
+      {gameStatus === "won" && (
+        <div className="sketched-box bg-accent-pink/30 mb-4 animate-in fade-in zoom-in duration-500">
+          <div className="flex items-center gap-2 mb-2">
+            <Unlock className="wobbly-icon" />
+            <h3 className="m-0 font-bold">Secret Message:</h3>
+          </div>
+          <p className="font-hand text-xl whitespace-pre-wrap">
+            {puzzle.secret_message}
+          </p>
+        </div>
+      )}
+
+      {gameStatus === "lost" && (
+        <div className="sketched-box bg-gray-200 mb-4">
+          <h3>Game Over</h3>
+          <p>
+            The word was: <b>{puzzle.target_word}</b>
+          </p>
+        </div>
+      )}
+
+      {/* Grid */}
+      <div className="flex-grow flex flex-col items-center justify-center gap-2 mb-4">
+        {[0, 1, 2, 3, 4, 5].map((rowIndex) => {
+          const isCurrentRow = rowIndex === guesses.length;
+          const rowGuess = isCurrentRow
+            ? currentGuess
+            : guesses[rowIndex] || "";
+          return (
+            <div key={rowIndex} className="flex gap-2">
+              {[0, 1, 2, 3, 4].map((colIndex) => (
+                <div
+                  key={colIndex}
+                  className={`
+                       w-12 h-12 sm:w-14 sm:h-14 
+                       border-2 flex items-center justify-center 
+                       text-2xl font-bold 
+                       rounded-sm transition-colors duration-500
+                       ${getCellClass(
+                         rowGuess[colIndex] || "",
+                         colIndex,
+                         rowIndex
+                       )}
+                       ${isCurrentRow ? "border-dashed" : "border-solid"}
+                     `}
+                >
+                  {rowGuess[colIndex]}
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Keyboard */}
+      <div className="w-full">
+        <div className="flex flex-wrap justify-center gap-1">
+          {LETTERS.map((char) => (
+            <button
+              key={char}
+              onClick={() => handleKeyPress(char)}
+              className="p-2 sm:p-3 bg-white border border-ink rounded font-bold text-sm sm:text-base hover:bg-gray-100 active:scale-95 transition-transform"
+            >
+              {char}
+            </button>
+          ))}
+          <button
+            onClick={() => handleKeyPress("BACKSPACE")}
+            className="p-2 px-4 bg-gray-200 border border-ink rounded"
+          >
+            ⌫
+          </button>
+          <button
+            onClick={() => handleKeyPress("ENTER")}
+            className="p-2 px-4 bg-accent-green border border-ink rounded"
+          >
+            ✓
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

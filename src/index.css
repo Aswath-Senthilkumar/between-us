@@ -1,1 +1,106 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap');
+
+:root {
+  --color-paper: #fdfbf7;
+  --color-ink: #2b2b2b;
+  --color-accent-pink: #ffcfd2;
+  --color-accent-blue: #cfebff;
+  --color-accent-green: #e0fadd;
+  --color-accent-yellow: #fdfd96;
+  
+  /* Font */
+  --font-hand: 'Patrick Hand', cursive;
+
+  /* Shadows for depth */
+  --shadow-paper: 2px 3px 5px rgba(0,0,0,0.1), 0 0 1px rgba(0,0,0,0.1);
+  --shadow-float: 5px 8px 15px rgba(0,0,0,0.15);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-hand);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  
+  /* Noise Texture for Paper Effect */
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
+  
+  /* Mobile safe area */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Utilities for Sketched Look */
+.sketched-box {
+  background: white;
+  border: 2px solid var(--color-ink);
+  border-radius: 2px 255px 3px 25px / 255px 5px 225px 5px; /* Skewed border radius */
+  padding: 1rem;
+  box-shadow: var(--shadow-paper);
+  position: relative;
+}
+
+.sketched-btn {
+  background: var(--color-accent-blue);
+  border: 2px solid var(--color-ink);
+  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+  padding: 0.8rem 1.5rem;
+  font-family: var(--font-hand);
+  font-size: 1.2rem;
+  color: var(--color-ink);
+  cursor: pointer;
+  transition: transform 0.1s;
+  display: inline-block;
+  text-decoration: none;
+}
+
+.sketched-btn:active {
+  transform: scale(0.98);
+}
+
+.sketched-input {
+  background: transparent;
+  border: none;
+  border-bottom: 2px dashed var(--color-ink);
+  padding: 0.5rem;
+  font-family: var(--font-hand);
+  font-size: 1.2rem;
+  width: 100%;
+  outline: none;
+}
+
+.sketched-input:focus {
+  border-bottom-style: solid;
+}
+
+/* Typography styles */
+h1, h2, h3 {
+  font-weight: 400; /* Regular weight for handwritten font */
+  margin-top: 0;
+}
+
+h1 { font-size: 2.5rem; }
+h2 { font-size: 2rem; }
+p { font-size: 1.1rem; line-height: 1.5; }
+
+/* SVG Wiggle Filter Class (to be applied to icons) */
+.wobbly-icon {
+  filter: url('#wobbly-filter');
+}
+
+/* Hide scrollbar for clean look */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #ccc; 
+  border-radius: 4px;
+}
