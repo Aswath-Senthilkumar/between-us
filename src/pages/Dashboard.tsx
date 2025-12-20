@@ -13,6 +13,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import type { Puzzle } from "../types";
 import { getLocalDate } from "../utils/date";
+import PageLayout from "../components/PageLayout";
 
 export default function Dashboard() {
   const { profile, refreshProfile } = useAuth();
@@ -25,7 +26,8 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<"received" | "sent">("received");
 
   // Puzzles state
-  const [puzzles, setPuzzles] = useState<Puzzle[]>([]);
+  const [receivedPuzzles, setReceivedPuzzles] = useState<Puzzle[]>([]);
+  const [sentPuzzles, setSentPuzzles] = useState<Puzzle[]>([]);
   const [loadingPuzzles, setLoadingPuzzles] = useState(true);
   const [page, setPage] = useState(0);
   const ITEMS_PER_PAGE = 10;
@@ -36,34 +38,53 @@ export default function Dashboard() {
   // Fetch puzzles based on tab and page
   // Fetch puzzles based on tab and page
   const fetchPuzzles = useCallback(
-    async (showLoading = true) => {
+    async (
+      targetTab: "received" | "sent" | "both" = "both",
+      showLoading = true
+    ) => {
       if (!profile?.partner_id) return;
       if (showLoading) setLoadingPuzzles(true);
 
-      let query = supabase
-        .from("puzzles")
-        .select("*")
-        .order("date", { ascending: false })
-        .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1);
+      const fetchType = async (type: "received" | "sent") => {
+        let query = supabase
+          .from("puzzles")
+          .select("*")
+          .order("date", { ascending: false })
+          .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1);
 
-      if (activeTab === "received") {
-        query = query.eq("solver_id", profile.id);
-      } else {
-        query = query.eq("setter_id", profile.id);
+        if (type === "received") {
+          query = query.eq("solver_id", profile.id);
+        } else {
+          query = query.eq("setter_id", profile.id);
+        }
+        return query;
+      };
+
+      const promises = [];
+      if (targetTab === "received" || targetTab === "both") {
+        promises.push(
+          fetchType("received").then(({ data, error }) => {
+            if (!error && data) setReceivedPuzzles(data);
+          })
+        );
+      }
+      if (targetTab === "sent" || targetTab === "both") {
+        promises.push(
+          fetchType("sent").then(({ data, error }) => {
+            if (!error && data) setSentPuzzles(data);
+          })
+        );
       }
 
-      const { data, error } = await query;
+      await Promise.all(promises);
 
-      if (!error && data) {
-        setPuzzles(data);
-      }
       if (showLoading) setLoadingPuzzles(false);
     },
-    [profile?.partner_id, profile?.id, activeTab, page]
+    [profile?.partner_id, profile?.id, page]
   );
 
   useEffect(() => {
-    fetchPuzzles(true);
+    fetchPuzzles("both", true);
 
     // Realtime subscription
     const channel = supabase
@@ -77,7 +98,7 @@ export default function Dashboard() {
         },
         () => {
           // Refresh without full loading state
-          fetchPuzzles(false);
+          fetchPuzzles("both", false);
         }
       )
       .subscribe();
@@ -201,11 +222,13 @@ export default function Dashboard() {
   }
 
   // Helper to determine if today's action is done
-  const todayPuzzle = puzzles.find((p) => p.date === formattedDate);
+  const activePuzzles =
+    activeTab === "received" ? receivedPuzzles : sentPuzzles;
+  const todayPuzzle = activePuzzles.find((p) => p.date === formattedDate);
 
   // VIEW 2: Partner Linked (Tabs Dashboard)
   return (
-    <div className="p-4 max-w-md mx-2 min-h-[100vh] flex flex-col">
+    <PageLayout theme="blue" className="flex flex-col max-w-md mx-auto p-4">
       <div className="absolute top-4 right-4 z-10">
         <Settings
           className="wobbly-icon w-8 h-8 text-ink cursor-pointer hover:rotate-12 transition-transform"
@@ -225,8 +248,7 @@ export default function Dashboard() {
             if (activeTab === "received") return;
             setActiveTab("received");
             setPage(0);
-            setLoadingPuzzles(true);
-            setPuzzles([]);
+            if (receivedPuzzles.length === 0) fetchPuzzles("received", true);
           }}
           className={`flex-1 pb-2 text-lg font-bold transition-colors ${
             activeTab === "received"
@@ -241,8 +263,7 @@ export default function Dashboard() {
             if (activeTab === "sent") return;
             setActiveTab("sent");
             setPage(0);
-            setLoadingPuzzles(true);
-            setPuzzles([]);
+            if (sentPuzzles.length === 0) fetchPuzzles("sent", true);
           }}
           className={`flex-1 pb-2 text-lg font-bold transition-colors ${
             activeTab === "sent"
@@ -313,12 +334,12 @@ export default function Dashboard() {
           {activeTab === "received" ? "History" : "Past Notes"}
         </h3>
 
-        {loadingPuzzles ? (
+        {loadingPuzzles && activePuzzles.length === 0 ? (
           <div className="text-center py-10 opacity-50">Loading history...</div>
-        ) : puzzles.length === 0 ? (
+        ) : activePuzzles.length === 0 ? (
           <div className="text-center py-10 opacity-40">No records found.</div>
         ) : (
-          puzzles.map((puzzle) => (
+          activePuzzles.map((puzzle) => (
             <div
               key={puzzle.id}
               onClick={() => {
@@ -374,12 +395,12 @@ export default function Dashboard() {
         <span className="font-mono text-sm opacity-50">Page {page + 1}</span>
         <button
           onClick={() => setPage((p) => p + 1)}
-          disabled={puzzles.length < ITEMS_PER_PAGE}
+          disabled={activePuzzles.length < ITEMS_PER_PAGE}
           className="p-2 disabled:opacity-30 hover:bg-black/5 rounded-full"
         >
           <ChevronRight />
         </button>
       </div>
-    </div>
+    </PageLayout>
   );
 }

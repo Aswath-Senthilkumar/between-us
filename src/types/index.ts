@@ -5,6 +5,7 @@ export interface Puzzle {
   setter_id: string;
   solver_id: string;
   target_word: string;
+  hint?: string | null;
   secret_message: string | null;
   guesses: string[];
   is_solved: boolean;

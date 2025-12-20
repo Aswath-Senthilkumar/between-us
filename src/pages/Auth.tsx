@@ -2,6 +2,7 @@ import { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
 import { Heart } from "lucide-react";
+import PageLayout from "../components/PageLayout";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -48,8 +49,11 @@ export default function Auth() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="sketched-box w-full max-w-md flex flex-col items-center gap-6 bg-white">
+    <PageLayout
+      theme="white"
+      className="flex flex-col items-center justify-center p-4"
+    >
+      <div className="sketched-box w-full max-w-md flex flex-col items-center gap-6 bg-white/80 backdrop-blur-sm">
         <div className="flex flex-col items-center">
           <Heart className="wobbly-icon mb-2 h-12 w-12 text-accent-pink fill-accent-pink" />
           <h1>Between Us</h1>
@@ -113,6 +117,6 @@ export default function Auth() {
           </button>
         </p>
       </div>
-    </div>
+    </PageLayout>
   );
 }

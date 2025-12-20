@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Lock, Unlock } from "lucide-react";
 import type { Puzzle } from "../types";
 import { getLocalDate } from "../utils/date";
+import PageLayout from "../components/PageLayout";
 
 const LETTERS = "QWERTYUIOPASDFGHJKLZXCVBNM".split("");
 
@@ -172,7 +173,7 @@ export default function Game() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen max-w-md mx-auto p-4">
+    <PageLayout theme="pink" className="flex flex-col max-w-md mx-auto p-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <button onClick={() => navigate("/")} className="p-2">
@@ -181,6 +182,11 @@ export default function Game() {
         <div className="text-center">
           <h1 className="text-xl m-0">Daily Puzzle</h1>
           <p className="text-sm opacity-60 m-0">{puzzle.date}</p>
+          {puzzle.hint && (
+            <p className="text-sm text-accent-blue font-bold m-0 mt-1">
+              Hint: {puzzle.hint}
+            </p>
+          )}
         </div>
         <div className="w-8"></div>
       </div>
@@ -268,6 +274,6 @@ export default function Game() {
           </div>
         )}
       </div>
-    </div>
+    </PageLayout>
   );
 }

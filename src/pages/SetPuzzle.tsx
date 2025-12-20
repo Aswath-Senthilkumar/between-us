@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/useAuth";
 import { ArrowLeft, Save } from "lucide-react";
+import PageLayout from "../components/PageLayout";
 import { getLocalDate } from "../utils/date";
 
 export default function SetPuzzle() {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [word, setWord] = useState("");
+  const [hint, setHint] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -26,6 +28,7 @@ export default function SetPuzzle() {
         setter_id: profile.id,
         solver_id: profile.partner_id,
         target_word: word.toUpperCase(),
+        hint: hint || null,
         secret_message: message,
       });
 
@@ -40,7 +43,7 @@ export default function SetPuzzle() {
   };
 
   return (
-    <div className="p-4 max-w-md mx-auto min-h-screen flex flex-col">
+    <PageLayout theme="pink" className="p-4 max-w-md mx-auto flex flex-col">
       <div className="flex items-center gap-4 mb-6">
         <button
           onClick={() => navigate(-1)}
@@ -52,7 +55,7 @@ export default function SetPuzzle() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 flex-grow">
-        <div className="sketched-box bg-white">
+        <div className="sketched-box bg-white/80 backdrop-blur-sm">
           <label className="block font-bold mb-2">THE WORD (5 LETTERS)</label>
           <input
             type="text"
@@ -65,7 +68,19 @@ export default function SetPuzzle() {
           />
         </div>
 
-        <div className="sketched-box bg-white flex-grow">
+        <div className="sketched-box bg-white/80 backdrop-blur-sm">
+          <label className="block font-bold mb-2">HINT (OPTIONAL)</label>
+          <input
+            type="text"
+            className="sketched-input"
+            value={hint}
+            onChange={(e) => setHint(e.target.value)}
+            placeholder="Something related to..."
+            maxLength={50}
+          />
+        </div>
+
+        <div className="sketched-box bg-white/80 backdrop-blur-sm flex-grow">
           <label className="block font-bold mb-2">SECRET MESSAGE</label>
           <textarea
             className="w-full h-40 border-2 border-dashed border-ink p-4 font-hand text-xl bg-transparent outline-none resize-none"
@@ -85,6 +100,6 @@ export default function SetPuzzle() {
           {loading ? "Locking in..." : "Lock In Puzzle"}
         </button>
       </form>
-    </div>
+    </PageLayout>
   );
 }
