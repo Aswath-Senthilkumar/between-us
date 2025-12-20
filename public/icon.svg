@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <filter id="sketch">
+      <feTurbulence type="fractalNoise" baseFrequency="0.01" numOctaves="3" result="noise" />
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="5" />
+    </filter>
+  </defs>
+  <style>
+    path { stroke: #2a2a2a; stroke-width: 24; fill: #fdfbf7; filter: url(#sketch); stroke-linecap: round; stroke-linejoin: round; }
+    .fill { fill: #ff6b6b; stroke: none; opacity: 0.8; }
+  </style>
+  <rect width="100%" height="100%" fill="#fdfbf7" />
+  <path d="M256 80 C 150 80, 80 180, 80 250 C 80 350, 256 450, 256 450 C 256 450, 432 350, 432 250 C 432 180, 362 80, 256 80 Z" class="fill" />
+  <path d="M256 80 C 150 80, 80 180, 80 250 C 80 350, 256 450, 256 450 C 256 450, 432 350, 432 250 C 432 180, 362 80, 256 80 Z" fill="none" />
+  <!-- Keyhole -->
+  <path d="M256 220 C 240 220, 230 235, 230 250 C 230 260, 235 270, 245 280 L 240 310 L 272 310 L 267 280 C 277 270, 282 260, 282 250 C 282 235, 272 220, 256 220 Z" fill="#2a2a2a" style="fill:#2a2a2a; stroke:none;" />
+</svg>

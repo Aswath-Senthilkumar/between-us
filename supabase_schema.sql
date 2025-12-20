@@ -56,6 +56,10 @@ create table if not exists puzzles (
   is_solved boolean default false
 );
 
+-- Ensure multiple puzzles per day are allowed, but only one per unique pair direction
+create unique index if not exists unique_daily_puzzle 
+  on puzzles (date, setter_id, solver_id);
+
 -- RLS for Puzzles
 alter table puzzles enable row level security;
 

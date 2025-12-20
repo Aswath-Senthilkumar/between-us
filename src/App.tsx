@@ -4,7 +4,8 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-import { AuthProvider, useAuth } from "./context/AuthContext";
+import { AuthProvider } from "./context/AuthContext";
+import { useAuth } from "./context/useAuth";
 import { Loader2 } from "lucide-react";
 
 // Pages (function placeholders for now)

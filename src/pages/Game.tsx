@@ -1,15 +1,19 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../lib/supabase";
-import { useAuth } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/useAuth";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Lock, Unlock } from "lucide-react";
 import type { Puzzle } from "../types";
+import { getLocalDate } from "../utils/date";
 
 const LETTERS = "QWERTYUIOPASDFGHJKLZXCVBNM".split("");
 
 export default function Game() {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const dateParam = searchParams.get("date");
+
   const [loading, setLoading] = useState(true);
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   const [guesses, setGuesses] = useState<string[]>([]);
@@ -18,16 +22,19 @@ export default function Game() {
     "playing"
   );
 
-  // Fetch today's puzzle
+  // Fetch puzzle (today or specific date)
   useEffect(() => {
     if (!profile) return;
     const fetchPuzzle = async () => {
-      const today = new Date().toISOString().split("T")[0];
+      setLoading(true);
+      // Use query param date OR today's date
+      const targetDate = dateParam || getLocalDate();
+
       const { data } = await supabase
         .from("puzzles")
         .select("*")
         .in("solver_id", [profile.id])
-        .eq("date", today)
+        .eq("date", targetDate)
         .single();
 
       if (data) {
@@ -36,11 +43,14 @@ export default function Game() {
         if (data.is_solved) setGameStatus("won");
         else if (data.guesses && data.guesses.length >= 6)
           setGameStatus("lost");
+        else setGameStatus("playing");
+      } else {
+        setPuzzle(null);
       }
       setLoading(false);
     };
     fetchPuzzle();
-  }, [profile]);
+  }, [profile, dateParam]);
 
   const saveProgress = useCallback(
     async (newGuesses: string[], solved: boolean) => {
@@ -126,13 +136,38 @@ export default function Game() {
     // If future row
     if (rowIndex > guesses.length) return "border-gray-200";
 
-    // If past row - check colors
+    // If past row - compute detailed Wordle logic
     const guess = guesses[rowIndex];
     const target = puzzle.target_word;
-    const guessLetter = guess[index];
 
-    if (guessLetter === target[index]) return "bg-accent-green border-ink";
-    if (target.includes(guessLetter)) return "bg-accent-yellow border-ink";
+    // 1. Identify Greens (Correct Position)
+    const targetChars: (string | null)[] = target.split("");
+    const guessChars = guess.split("");
+    const resultColors = Array(5).fill("gray"); // Default to gray
+
+    // First pass: Mark Greens
+    guessChars.forEach((char, i) => {
+      if (char === targetChars[i]) {
+        resultColors[i] = "green";
+        targetChars[i] = null; // Remove from pool
+      }
+    });
+
+    // Second pass: Mark Yellows
+    guessChars.forEach((char, i) => {
+      if (resultColors[i] !== "green") {
+        const targetIndex = targetChars.indexOf(char);
+        if (targetIndex !== -1) {
+          resultColors[i] = "yellow";
+          targetChars[targetIndex] = null; // Remove from pool
+        }
+      }
+    });
+
+    const color = resultColors[index];
+
+    if (color === "green") return "bg-accent-green border-ink";
+    if (color === "yellow") return "bg-accent-yellow border-ink";
     return "bg-gray-200 border-gray-400 opacity-50";
   };
 
@@ -143,7 +178,10 @@ export default function Game() {
         <button onClick={() => navigate("/")} className="p-2">
           <ArrowLeft />
         </button>
-        <h1 className="text-xl">Daily Puzzle</h1>
+        <div className="text-center">
+          <h1 className="text-xl m-0">Daily Puzzle</h1>
+          <p className="text-sm opacity-60 m-0">{puzzle.date}</p>
+        </div>
         <div className="w-8"></div>
       </div>
 
@@ -204,29 +242,31 @@ export default function Game() {
 
       {/* Keyboard */}
       <div className="w-full">
-        <div className="flex flex-wrap justify-center gap-1">
-          {LETTERS.map((char) => (
+        {gameStatus === "playing" && (
+          <div className="flex flex-wrap justify-center gap-1">
+            {LETTERS.map((char) => (
+              <button
+                key={char}
+                onClick={() => handleKeyPress(char)}
+                className="p-2 sm:p-3 bg-white border border-ink rounded font-bold text-sm sm:text-base hover:bg-gray-100 active:scale-95 transition-transform"
+              >
+                {char}
+              </button>
+            ))}
             <button
-              key={char}
-              onClick={() => handleKeyPress(char)}
-              className="p-2 sm:p-3 bg-white border border-ink rounded font-bold text-sm sm:text-base hover:bg-gray-100 active:scale-95 transition-transform"
+              onClick={() => handleKeyPress("BACKSPACE")}
+              className="p-2 px-4 bg-gray-200 border border-ink rounded"
             >
-              {char}
+              ⌫
             </button>
-          ))}
-          <button
-            onClick={() => handleKeyPress("BACKSPACE")}
-            className="p-2 px-4 bg-gray-200 border border-ink rounded"
-          >
-            ⌫
-          </button>
-          <button
-            onClick={() => handleKeyPress("ENTER")}
-            className="p-2 px-4 bg-accent-green border border-ink rounded"
-          >
-            ✓
-          </button>
-        </div>
+            <button
+              onClick={() => handleKeyPress("ENTER")}
+              className="p-2 px-4 bg-accent-green border border-ink rounded"
+            >
+              ✓
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

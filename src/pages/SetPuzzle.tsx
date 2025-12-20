@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import { ArrowLeft, Save } from "lucide-react";
+import { getLocalDate } from "../utils/date";
 
 export default function SetPuzzle() {
   const { profile } = useAuth();
@@ -18,7 +19,7 @@ export default function SetPuzzle() {
 
     setLoading(true);
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = getLocalDate();
 
       const { error } = await supabase.from("puzzles").insert({
         date: today,

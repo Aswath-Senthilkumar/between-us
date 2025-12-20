@@ -1,53 +1,98 @@
-import { useState, useEffect } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "../context/useAuth";
 import { supabase } from "../lib/supabase";
-import { Users, Settings, XCircle } from "lucide-react";
+import {
+  Users,
+  Settings,
+  XCircle,
+  ChevronLeft,
+  ChevronRight,
+  Lock,
+  Unlock,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { Puzzle } from "../types";
+import { getLocalDate } from "../utils/date";
 
 export default function Dashboard() {
   const { profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [partnerEmail, setPartnerEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [loadingLink, setLoadingLink] = useState(false);
+  const [linkMsg, setLinkMsg] = useState<string | null>(null);
 
-  // Game state
-  const [todaysPuzzle, setTodaysPuzzle] = useState<Puzzle | null>(null);
-  const [loadingPuzzle, setLoadingPuzzle] = useState(true);
+  // Tabs state
+  const [activeTab, setActiveTab] = useState<"received" | "sent">("received");
 
-  // Fetch puzzle effect
-  const formattedDate = new Date().toISOString().split("T")[0];
+  // Puzzles state
+  const [puzzles, setPuzzles] = useState<Puzzle[]>([]);
+  const [loadingPuzzles, setLoadingPuzzles] = useState(true);
+  const [page, setPage] = useState(0);
+  const ITEMS_PER_PAGE = 10;
 
-  useEffect(() => {
-    if (profile?.partner_id) {
-      setLoadingPuzzle(true);
-      supabase
+  const formattedDate = getLocalDate();
+
+  // Fetch puzzles based on tab and page
+  // Fetch puzzles based on tab and page
+  // Fetch puzzles based on tab and page
+  const fetchPuzzles = useCallback(
+    async (showLoading = true) => {
+      if (!profile?.partner_id) return;
+      if (showLoading) setLoadingPuzzles(true);
+
+      let query = supabase
         .from("puzzles")
         .select("*")
-        .or(`setter_id.eq.${profile.id},solver_id.eq.${profile.id}`)
-        .eq("date", formattedDate)
-        .single()
-        .then(({ data, error }) => {
-          if (error) {
-            setTodaysPuzzle(null);
-          } else {
-            setTodaysPuzzle(data);
-          }
-          setLoadingPuzzle(false);
-        });
-    } else {
-      setLoadingPuzzle(false);
-    }
-  }, [profile?.partner_id, profile?.id, formattedDate]);
+        .order("date", { ascending: false })
+        .range(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE - 1);
+
+      if (activeTab === "received") {
+        query = query.eq("solver_id", profile.id);
+      } else {
+        query = query.eq("setter_id", profile.id);
+      }
+
+      const { data, error } = await query;
+
+      if (!error && data) {
+        setPuzzles(data);
+      }
+      if (showLoading) setLoadingPuzzles(false);
+    },
+    [profile?.partner_id, profile?.id, activeTab, page]
+  );
+
+  useEffect(() => {
+    fetchPuzzles(true);
+
+    // Realtime subscription
+    const channel = supabase
+      .channel("puzzles-dashboard")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "puzzles",
+        },
+        () => {
+          // Refresh without full loading state
+          fetchPuzzles(false);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchPuzzles]);
 
   const handleLinkPartner = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setMsg(null);
+    setLoadingLink(true);
+    setLinkMsg(null);
 
     try {
-      // Call the stored procedure 'link_partner'
       const { error } = await supabase.rpc("link_partner", {
         partner_email: partnerEmail,
       });
@@ -55,24 +100,24 @@ export default function Dashboard() {
       if (error) throw error;
 
       await refreshProfile();
-      setMsg("Partner linked successfully! 🎉");
+      setLinkMsg("Partner linked successfully! 🎉");
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
-      setMsg(`Error: ${errorMessage}`);
+      setLinkMsg(`Error: ${errorMessage}`);
     } finally {
-      setLoading(false);
+      setLoadingLink(false);
     }
+  };
+
+  const handleDismissNotification = async () => {
+    await supabase.rpc("dismiss_notification");
+    refreshProfile();
   };
 
   if (!profile) return null;
 
   // VIEW 1: No Partner Linked
   if (!profile.partner_id) {
-    const handleDismissNotification = async () => {
-      await supabase.rpc("dismiss_notification");
-      refreshProfile();
-    };
-
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
         <div className="absolute top-4 right-4 z-10">
@@ -136,18 +181,18 @@ export default function Dashboard() {
               />
             </div>
 
-            {msg && (
+            {linkMsg && (
               <p
                 className={`text-sm ${
-                  msg.includes("Error") ? "text-red-500" : "text-green-600"
+                  linkMsg.includes("Error") ? "text-red-500" : "text-green-600"
                 }`}
               >
-                {msg}
+                {linkMsg}
               </p>
             )}
 
-            <button disabled={loading} className="sketched-btn w-full">
-              {loading ? "Linking..." : "Link Partner"}
+            <button disabled={loadingLink} className="sketched-btn w-full">
+              {loadingLink ? "Linking..." : "Link Partner"}
             </button>
           </form>
         </div>
@@ -155,9 +200,12 @@ export default function Dashboard() {
     );
   }
 
-  // VIEW 2: Partner Linked (Game Dashboard)
+  // Helper to determine if today's action is done
+  const todayPuzzle = puzzles.find((p) => p.date === formattedDate);
+
+  // VIEW 2: Partner Linked (Tabs Dashboard)
   return (
-    <div className="p-4 max-w-md mx-auto space-y-6 flex flex-col items-center justify-center min-h-[80vh]">
+    <div className="p-4 max-w-md mx-2 min-h-[100vh] flex flex-col">
       <div className="absolute top-4 right-4 z-10">
         <Settings
           className="wobbly-icon w-8 h-8 text-ink cursor-pointer hover:rotate-12 transition-transform"
@@ -165,52 +213,173 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="text-center mb-8">
-        <h1 className="text-4xl mb-2">Hello, {profile.username || "Love"}</h1>
-        <p className="opacity-60">{formattedDate}</p>
+      <div className="text-center mb-6 mt-4">
+        <h1 className="text-3xl mb-1">Hello, {profile.username || "Love"}</h1>
+        <p className="opacity-60 font-mono text-sm">{formattedDate}</p>
       </div>
 
-      {loadingPuzzle ? (
-        <div className="animate-pulse">Checking for love notes...</div>
-      ) : todaysPuzzle ? (
-        // Puzzle Exists
-        todaysPuzzle.setter_id === profile.id ? (
-          <div className="sketched-box bg-accent-blue/30 w-full text-center p-8">
-            <h3 className="text-xl mb-4">You set the word!</h3>
-            <div className="text-4xl font-bold tracking-widest mb-4">
-              {todaysPuzzle.target_word}
+      {/* Tabs */}
+      <div className="flex border-b-2 border-ink mb-6">
+        <button
+          onClick={() => {
+            if (activeTab === "received") return;
+            setActiveTab("received");
+            setPage(0);
+            setLoadingPuzzles(true);
+            setPuzzles([]);
+          }}
+          className={`flex-1 pb-2 text-lg font-bold transition-colors ${
+            activeTab === "received"
+              ? "border-b-4 border-accent-pink"
+              : "opacity-40"
+          }`}
+        >
+          Received 💌
+        </button>
+        <button
+          onClick={() => {
+            if (activeTab === "sent") return;
+            setActiveTab("sent");
+            setPage(0);
+            setLoadingPuzzles(true);
+            setPuzzles([]);
+          }}
+          className={`flex-1 pb-2 text-lg font-bold transition-colors ${
+            activeTab === "sent"
+              ? "border-b-4 border-accent-blue"
+              : "opacity-40"
+          }`}
+        >
+          Sent ✏️
+        </button>
+      </div>
+
+      {/* Main Action Area (Top of list) */}
+      <div className="mb-8">
+        {loadingPuzzles ? (
+          <div className="sketched-box bg-gray-100 p-6 text-center opacity-50 animate-pulse">
+            Loading...
+          </div>
+        ) : activeTab === "received" ? (
+          // RECEIVED TAB ACTION
+          !todayPuzzle ? (
+            <div className="sketched-box bg-white p-6 text-center opacity-80">
+              <p>No puzzle received for today yet.</p>
+              <p className="text-sm opacity-60 mt-2">Remind your partner!</p>
             </div>
-            <p className="opacity-70">
-              {todaysPuzzle.is_solved
+          ) : todayPuzzle.is_solved ? (
+            <div
+              onClick={() => navigate("/solve")}
+              className="sketched-box bg-accent-green/30 w-full text-center p-6 border-dashed cursor-pointer hover:scale-[1.02] transition-transform"
+            >
+              <h3 className="text-lg font-bold mb-2">Today's Puzzle Solved!</h3>
+              <p>Message: "{todayPuzzle.secret_message}"</p>
+              <p className="text-xs opacity-50 mt-2">(Tap to view board)</p>
+            </div>
+          ) : (
+            <a
+              href="/solve"
+              className="sketched-btn w-full text-center py-6 text-xl bg-accent-pink animate-pulse block"
+            >
+              Play Daily Puzzle 🎮
+            </a>
+          )
+        ) : // SENT TAB ACTION
+        !todayPuzzle ? (
+          <a
+            href="/set"
+            className="sketched-btn w-full text-center py-6 text-xl bg-accent-blue block"
+          >
+            ✏️ Set Today's Word
+          </a>
+        ) : (
+          <div className="sketched-box bg-accent-blue/20 w-full text-center p-6">
+            <h3 className="text-lg font-bold mb-1">You set the word!</h3>
+            <div className="text-2xl font-bold tracking-widest mb-2 font-mono">
+              {todayPuzzle.target_word}
+            </div>
+            <p className="opacity-70 text-sm">
+              {todayPuzzle.is_solved
                 ? "Partner solved it! 🎉"
                 : "Waiting for partner to solve..."}
             </p>
           </div>
-        ) : (
-          <a
-            href="/solve"
-            className="sketched-btn w-full text-center py-6 text-xl bg-accent-pink animate-pulse"
-          >
-            {todaysPuzzle.is_solved
-              ? "View Message 💌"
-              : "Play Daily Puzzle 🎮"}
-          </a>
-        )
-      ) : (
-        // No Puzzle Yet
-        <div className="w-full space-y-4">
-          <div className="sketched-box bg-white p-6 text-center opacity-80">
-            <p>No puzzle set for today yet.</p>
-          </div>
+        )}
+      </div>
 
-          <a
-            href="/set"
-            className="sketched-btn w-full text-center py-4 flex items-center justify-center gap-2"
-          >
-            <span>✏️</span> Set the Word
-          </a>
-        </div>
-      )}
+      {/* History List */}
+      <div className="space-y-4 flex-grow">
+        <h3 className="font-bold opacity-50 text-sm tracking-widest uppercase">
+          {activeTab === "received" ? "History" : "Past Notes"}
+        </h3>
+
+        {loadingPuzzles ? (
+          <div className="text-center py-10 opacity-50">Loading history...</div>
+        ) : puzzles.length === 0 ? (
+          <div className="text-center py-10 opacity-40">No records found.</div>
+        ) : (
+          puzzles.map((puzzle) => (
+            <div
+              key={puzzle.id}
+              onClick={() => {
+                // Navigate to solve if it's a received puzzle, regardless of solved status
+                // Or if sentiment is to just view history.
+                // If it is 'sent', maybe we want a different view?
+                // For now, let's allow opening 'received' puzzles to view them.
+                if (activeTab === "received") {
+                  navigate(`/solve?date=${puzzle.date}`);
+                }
+              }}
+              className={`sketched-box p-4 flex items-center justify-between transition-colors ${
+                puzzle.date === formattedDate
+                  ? "border-2 border-ink"
+                  : "border border-gray-300 opacity-80"
+              } ${
+                activeTab === "received"
+                  ? "cursor-pointer hover:bg-gray-50"
+                  : ""
+              }`}
+            >
+              <div>
+                <div className="font-bold text-lg">{puzzle.date}</div>
+                <div className="text-sm opacity-60">
+                  {activeTab === "sent"
+                    ? `Word: ${puzzle.target_word}`
+                    : puzzle.is_solved
+                    ? puzzle.secret_message
+                    : "Unsolved"}
+                </div>
+              </div>
+              <div>
+                {puzzle.is_solved ? (
+                  <Unlock className="text-green-600 wobbly-icon" size={20} />
+                ) : (
+                  <Lock className="text-gray-400" size={20} />
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Pagination */}
+      <div className="flex justify-between items-center mt-6 pt-4 border-t border-ink/10">
+        <button
+          onClick={() => setPage((p) => Math.max(0, p - 1))}
+          disabled={page === 0}
+          className="p-2 disabled:opacity-30 hover:bg-black/5 rounded-full"
+        >
+          <ChevronLeft />
+        </button>
+        <span className="font-mono text-sm opacity-50">Page {page + 1}</span>
+        <button
+          onClick={() => setPage((p) => p + 1)}
+          disabled={puzzles.length < ITEMS_PER_PAGE}
+          className="p-2 disabled:opacity-30 hover:bg-black/5 rounded-full"
+        >
+          <ChevronRight />
+        </button>
+      </div>
     </div>
   );
 }
