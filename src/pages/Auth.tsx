@@ -27,7 +27,7 @@ export default function Auth() {
         if (error) throw error;
         navigate("/");
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -37,8 +37,13 @@ export default function Auth() {
           },
         });
         if (error) throw error;
-        // Optionally show "Check your email" message
-        alert("Check your email to confirm signup!");
+
+        // If email confirmation is off, we get a session immediately
+        if (data.session) {
+          navigate("/");
+        } else {
+          alert("Check your email to confirm signup!");
+        }
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";

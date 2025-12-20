@@ -20,11 +20,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (error) {
         console.error("Error fetching profile:", error);
+        // If profile is missing but session exists, state is invalid. Force sign out.
+        await supabase.auth.signOut();
+        setSession(null);
+        setUser(null);
+        setProfile(null);
       } else {
         setProfile(data);
       }
     } catch (err) {
       console.error("Unexpected error fetching profile:", err);
+      // Ensure we don't get stuck in limbo
+      setProfile(null);
     }
   };
 

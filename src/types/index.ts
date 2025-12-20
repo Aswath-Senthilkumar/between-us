@@ -14,6 +14,14 @@ export interface Puzzle {
   message_viewed?: boolean;
 }
 
+export interface PartnerRequest {
+  id: string;
+  sender_id: string;
+  receiver_email: string;
+  status: "pending" | "accepted" | "rejected";
+  created_at: string;
+}
+
 export interface Profile {
   id: string;
   email: string | null;

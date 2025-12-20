@@ -2,25 +2,27 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../lib/supabase";
 import {
-  Users,
   Settings,
   XCircle,
   ChevronLeft,
   ChevronRight,
   Lock,
   Unlock,
+  Mail,
+  Check,
+  X,
+  Clock,
+  Heart,
+  Send,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import type { Puzzle } from "../types";
+import type { Puzzle, PartnerRequest } from "../types";
 import { getLocalDate } from "../utils/date";
 import PageLayout from "../components/PageLayout";
 
 export default function Dashboard() {
   const { profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
-  const [partnerEmail, setPartnerEmail] = useState("");
-  const [loadingLink, setLoadingLink] = useState(false);
-  const [linkMsg, setLinkMsg] = useState<string | null>(null);
 
   // Tabs state
   const [activeTab, setActiveTab] = useState<"received" | "sent">("received");
@@ -29,6 +31,13 @@ export default function Dashboard() {
   // Puzzles state
   const [receivedPuzzles, setReceivedPuzzles] = useState<Puzzle[]>([]);
   const [sentPuzzles, setSentPuzzles] = useState<Puzzle[]>([]);
+
+  // Invitation State
+  const [partnerRequests, setPartnerRequests] = useState<PartnerRequest[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [inviteMsg, setInviteMsg] = useState<string | null>(null);
 
   // Separate loading states
   const [loadingReceived, setLoadingReceived] = useState(true);
@@ -151,25 +160,114 @@ export default function Dashboard() {
     }
   }, [sentPage]);
 
-  const handleLinkPartner = async (e: React.FormEvent) => {
+  // Fetch Requests (only if no partner)
+  useEffect(() => {
+    if (profile && !profile.partner_id) {
+      const fetchRequests = async () => {
+        setLoadingRequests(true);
+        const { data } = await supabase
+          .from("partner_requests")
+          .select("*")
+          .or(`sender_id.eq.${profile.id},receiver_email.eq.${profile.email}`)
+          .order("created_at", { ascending: false });
+
+        if (data) setPartnerRequests(data as PartnerRequest[]);
+        setLoadingRequests(false);
+      };
+
+      fetchRequests();
+
+      // Realtime for requests
+      const channel = supabase
+        .channel("requests_and_profile")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "partner_requests" },
+          () => {
+            fetchRequests();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "profiles",
+            filter: `id=eq.${profile.id}`,
+          },
+          () => {
+            refreshProfile();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [profile]);
+
+  const handleSendInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoadingLink(true);
-    setLinkMsg(null);
+    if (!inviteEmail) return;
+    setSendingInvite(true);
+    setInviteMsg(null);
 
     try {
-      const { error } = await supabase.rpc("link_partner", {
-        partner_email: partnerEmail,
+      const { error } = await supabase.rpc("send_invite", {
+        target_email: inviteEmail,
       });
 
       if (error) throw error;
-
-      await refreshProfile();
-      setLinkMsg("Partner linked successfully! 🎉");
+      setInviteMsg("Invite sent! 💌");
+      setInviteEmail("");
+      // Refresh requests
+      const { data } = await supabase
+        .from("partner_requests")
+        .select("*")
+        .or(`sender_id.eq.${profile!.id},receiver_email.eq.${profile!.email}`)
+        .order("created_at", { ascending: false });
+      if (data) setPartnerRequests(data as PartnerRequest[]);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Unknown error";
-      setLinkMsg(`Error: ${errorMessage}`);
+      const errorMessage =
+        err instanceof Error ? err.message : "Not found or Already Pending";
+      setInviteMsg(`Error: ${errorMessage}`);
     } finally {
-      setLoadingLink(false);
+      setSendingInvite(false);
+    }
+  };
+
+  const handleAcceptInvite = async (requestId: string) => {
+    try {
+      const { error } = await supabase.rpc("accept_invite", {
+        request_id: requestId,
+      });
+      if (error) throw error;
+      await refreshProfile();
+    } catch (err) {
+      alert(
+        "Failed to accept: " + (err instanceof Error ? err.message : "Unknown")
+      );
+    }
+  };
+
+  const handleRejectInvite = async (requestId: string) => {
+    try {
+      const { error } = await supabase.rpc("reject_invite", {
+        request_id: requestId,
+      });
+      if (error) throw error;
+      // Refresh list
+      const { data } = await supabase
+        .from("partner_requests")
+        .select("*")
+        .or(`sender_id.eq.${profile!.id},receiver_email.eq.${profile!.email}`)
+        .order("created_at", { ascending: false });
+      if (data) setPartnerRequests(data as PartnerRequest[]);
+    } catch (err) {
+      alert(
+        "Failed to reject: " + (err instanceof Error ? err.message : "Unknown")
+      );
     }
   };
 
@@ -196,10 +294,13 @@ export default function Dashboard() {
 
   if (!profile) return null;
 
-  // VIEW 1: No Partner Linked
+  // VIEW 1: No Partner Linked (Invitation System)
   if (!profile.partner_id) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4">
+      <PageLayout
+        theme="white"
+        className="flex flex-col items-center justify-center p-4"
+      >
         <div className="absolute top-4 right-4 z-10">
           <Settings
             className="wobbly-icon w-8 h-8 text-ink cursor-pointer hover:rotate-12 transition-transform"
@@ -225,58 +326,161 @@ export default function Dashboard() {
           </div>
         )}
 
-        <div className="sketched-box w-full max-w-md text-center space-y-6">
-          <Users className="wobbly-icon h-16 w-16 mx-auto text-ink" />
-
-          <div>
-            <h2>Find your person</h2>
-            <p className="opacity-70">You need a partner to play this game.</p>
+        <div className="w-full max-w-md space-y-8 animate-in fade-in zoom-in duration-500">
+          <div className="text-center">
+            <Heart className="wobbly-icon h-16 w-16 mx-auto text-accent-pink mb-4" />
+            <h2 className="text-3xl font-display mb-2">Find your person</h2>
+            <p className="opacity-70">
+              Invite your partner to start your ritual.
+            </p>
           </div>
 
-          <div className="bg-accent-yellow/30 p-4 rounded-lg border-2 border-ink border-dashed">
-            <p className="text-sm font-bold mb-1">YOUR EMAIL</p>
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-mono text-lg">{profile.email}</span>
-            </div>
-          </div>
-
-          <div className="relative flex py-2 items-center">
-            <div className="flex-grow border-t border-ink opacity-30"></div>
-            <span className="flex-shrink mx-4 text-gray-400">OR</span>
-            <div className="flex-grow border-t border-ink opacity-30"></div>
-          </div>
-
-          <form onSubmit={handleLinkPartner} className="space-y-4">
-            <div className="text-left">
-              <label className="block mb-1 ml-1 text-sm font-bold">
-                ENTER PARTNER'S EMAIL
-              </label>
-              <input
-                type="email"
-                placeholder="partner@example.com"
-                className="sketched-input"
-                value={partnerEmail}
-                onChange={(e) => setPartnerEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            {linkMsg && (
-              <p
-                className={`text-sm ${
-                  linkMsg.includes("Error") ? "text-red-500" : "text-green-600"
-                }`}
-              >
-                {linkMsg}
+          {/* Send Invite Form - Only show if NO pending outgoing requests */}
+          {partnerRequests.some(
+            (r) => r.sender_id === profile.id && r.status === "pending"
+          ) ? (
+            <div className="sketched-box bg-white p-6 relative overflow-hidden text-center">
+              <div className="absolute top-0 right-0 p-2 opacity-10">
+                <Clock size={80} />
+              </div>
+              <h3 className="text-xl font-bold mb-2 flex items-center justify-center gap-2">
+                <Clock size={24} className="text-accent-blue" /> Waiting for
+                Partner
+              </h3>
+              <p className="opacity-70">
+                Invitation sent to{" "}
+                <span className="font-bold">
+                  {
+                    partnerRequests.find((r) => r.sender_id === profile.id)
+                      ?.receiver_email
+                  }
+                </span>
+                .
               </p>
-            )}
+              <p className="text-sm opacity-50 mt-2">
+                Ask them to check their dashboard to accept!
+              </p>
+            </div>
+          ) : (
+            <div className="sketched-box bg-white p-6 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-2 opacity-10">
+                <Mail size={80} />
+              </div>
 
-            <button disabled={loadingLink} className="sketched-btn w-full">
-              {loadingLink ? "Linking..." : "Link Partner"}
-            </button>
-          </form>
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <Send size={20} /> Send Invite
+              </h3>
+
+              <form
+                onSubmit={handleSendInvite}
+                className="space-y-4 relative z-10"
+              >
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest opacity-50 mb-1">
+                    Partner's Email
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="partner@example.com"
+                    className="sketched-input w-full bg-transparent"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {inviteMsg && (
+                  <p
+                    className={`text-sm font-bold ${
+                      inviteMsg.includes("Error")
+                        ? "text-red-500"
+                        : "text-green-600"
+                    }`}
+                  >
+                    {inviteMsg}
+                  </p>
+                )}
+
+                <button
+                  disabled={sendingInvite}
+                  className="sketched-btn w-full bg-accent-yellow"
+                >
+                  {sendingInvite ? "Sending..." : "Send Invitation"}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* Pending Requests List */}
+          {loadingRequests ? (
+            <div className="text-center opacity-50 py-4 animate-pulse">
+              Checking for invites...
+            </div>
+          ) : (
+            partnerRequests.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 opacity-50 px-2">
+                  <Clock size={16} />
+                  <span className="text-xs font-bold uppercase tracking-widest">
+                    Pending Requests
+                  </span>
+                </div>
+
+                {partnerRequests.map((req) => {
+                  const isIncoming = req.receiver_email === profile.email;
+                  return (
+                    <div
+                      key={req.id}
+                      className={`sketched-box p-4 flex items-center justify-between ${
+                        isIncoming
+                          ? "bg-accent-blue/10 border-accent-blue"
+                          : "opacity-70 bg-gray-50"
+                      }`}
+                    >
+                      <div>
+                        <div className="font-bold text-lg mb-1">
+                          {isIncoming ? "Incoming Invite 💌" : "Invite Sent 📨"}
+                        </div>
+                        <div className="text-sm opacity-70 font-mono">
+                          {isIncoming ? "From: " : "To: "}
+                          {isIncoming ? "Partner" : req.receiver_email}
+                        </div>
+                        <div className="text-xs opacity-50 mt-1 capitalize">
+                          {req.status}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {isIncoming && req.status === "pending" && (
+                          <>
+                            <button
+                              onClick={() => handleAcceptInvite(req.id)}
+                              className="w-10 h-10 rounded-full bg-accent-green flex items-center justify-center border-2 border-ink hover:scale-110 transition-transform shadow-[2px_2px_0px_rgba(0,0,0,1)]"
+                            >
+                              <Check className="text-white" size={20} />
+                            </button>
+                            <button
+                              onClick={() => handleRejectInvite(req.id)}
+                              className="w-10 h-10 rounded-full bg-red-400 flex items-center justify-center border-2 border-ink hover:scale-110 transition-transform shadow-[2px_2px_0px_rgba(0,0,0,1)]"
+                            >
+                              <X className="text-white" size={20} />
+                            </button>
+                          </>
+                        )}
+                        {!isIncoming && req.status === "pending" && (
+                          <div className="px-3 py-1 bg-gray-200 rounded-full text-xs font-bold opacity-50">
+                            Waiting
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          )}
         </div>
-      </div>
+      </PageLayout>
     );
   }
 
