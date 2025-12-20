@@ -3,6 +3,7 @@ import { ArrowLeft, LogOut, Trash2, AlertTriangle } from "lucide-react";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../lib/supabase";
 import { useState } from "react";
+import PageLayout from "../components/PageLayout";
 
 export default function Settings() {
   const { profile, signOut } = useAuth();
@@ -38,7 +39,7 @@ export default function Settings() {
   if (!profile) return null;
 
   return (
-    <div className="flex flex-col min-h-screen max-w-md mx-auto p-4">
+    <PageLayout theme="green" className="flex flex-col max-w-md mx-auto p-4">
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
         <button
@@ -52,7 +53,7 @@ export default function Settings() {
 
       <div className="space-y-6">
         {/* Profile Section */}
-        <div className="sketched-box bg-white">
+        <div className="sketched-box bg-white/80 backdrop-blur-sm">
           <h2 className="text-lg font-bold mb-4">Profile</h2>
           <div className="space-y-4">
             <div>
@@ -75,7 +76,7 @@ export default function Settings() {
         </div>
 
         {/* Actions Section */}
-        <div className="sketched-box bg-white">
+        <div className="sketched-box bg-white/80 backdrop-blur-sm">
           <h2 className="text-lg font-bold mb-4">Actions</h2>
           <div className="space-y-3">
             <button
@@ -124,6 +125,6 @@ export default function Settings() {
           </div>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }
