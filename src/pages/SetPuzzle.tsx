@@ -5,6 +5,7 @@ import { useAuth } from "../context/useAuth";
 import { ArrowLeft, Save } from "lucide-react";
 import PageLayout from "../components/PageLayout";
 import { getLocalDate } from "../utils/date";
+import { withTimeout } from "../utils/async";
 
 export default function SetPuzzle() {
   const { profile } = useAuth();
@@ -23,14 +24,18 @@ export default function SetPuzzle() {
     try {
       const today = getLocalDate();
 
-      const { error } = await supabase.from("puzzles").insert({
-        date: today,
-        setter_id: profile.id,
-        solver_id: profile.partner_id,
-        target_word: word.toUpperCase(),
-        hint: hint || null,
-        secret_message: message,
-      });
+      const { error } = await withTimeout<any>(
+        supabase.from("puzzles").insert({
+          date: today,
+          setter_id: profile.id,
+          solver_id: profile.partner_id,
+          target_word: word.toUpperCase(),
+          hint: hint || null,
+          secret_message: message,
+        }),
+        15000,
+        "Taking too long to lock in. Check connection?"
+      );
 
       if (error) throw error;
       navigate("/");

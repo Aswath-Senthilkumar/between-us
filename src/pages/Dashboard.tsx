@@ -21,6 +21,7 @@ import OnboardingTour from "../components/OnboardingTour";
 import type { Step } from "react-joyride";
 import { getLocalDate } from "../utils/date";
 import PageLayout from "../components/PageLayout";
+import { withTimeout } from "../utils/async";
 
 const DASHBOARD_STEPS: Step[] = [
   {
@@ -262,9 +263,14 @@ export default function Dashboard() {
     setInviteMsg(null);
 
     try {
-      const { error } = await supabase.rpc("send_invite", {
-        target_email: inviteEmail,
-      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await withTimeout<any>(
+        supabase.rpc("send_invite", {
+          target_email: inviteEmail,
+        }),
+        15000,
+        "Network request timed out. Please try again."
+      );
 
       if (error) throw error;
       setInviteMsg("Invite sent! 💌");
@@ -340,7 +346,19 @@ export default function Dashboard() {
       .eq("id", puzzleId);
   };
 
-  if (!profile) return null;
+  if (!profile) {
+    return (
+      <PageLayout
+        theme="white"
+        className="flex items-center justify-center h-screen"
+      >
+        <div className="animate-pulse opacity-50 flex flex-col items-center gap-2">
+          <div className="w-8 h-8 rounded-full border-4 border-accent-pink border-t-transparent animate-spin" />
+          <span className="text-sm font-mono">Loading profile...</span>
+        </div>
+      </PageLayout>
+    );
+  }
 
   // VIEW 1: No Partner Linked (Invitation System)
   if (!profile.partner_id) {
