@@ -28,5 +28,6 @@ export interface Profile {
   username: string | null;
   partner_id: string | null;
   system_notification?: string | null;
+  has_seen_onboarding?: boolean;
 }
 
