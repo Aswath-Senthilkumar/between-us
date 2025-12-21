@@ -355,6 +355,12 @@ export default function Dashboard() {
         <div className="animate-pulse opacity-50 flex flex-col items-center gap-2">
           <div className="w-8 h-8 rounded-full border-4 border-accent-pink border-t-transparent animate-spin" />
           <span className="text-sm font-mono">Loading profile...</span>
+          <button
+            onClick={() => window.location.reload()}
+            className="text-xs underline mt-2 hover:text-accent-pink cursor-pointer pointer-events-auto"
+          >
+            Taking too long? Tap to reload
+          </button>
         </div>
       </PageLayout>
     );
