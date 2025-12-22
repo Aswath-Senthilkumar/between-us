@@ -1,9 +1,10 @@
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, LogOut, Trash2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, LogOut, Trash2, AlertTriangle, Bell } from "lucide-react";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../lib/supabase";
 import { useState } from "react";
 import PageLayout from "../components/PageLayout";
+import { subscribeToPushNotifications } from "../utils/notifications";
 
 export default function Settings() {
   const { profile, signOut } = useAuth();
@@ -17,6 +18,20 @@ export default function Settings() {
       navigate("/auth");
     } catch (error) {
       console.error("Error signing out:", error);
+    }
+  };
+
+  const handleEnableNotifications = async () => {
+    if (!profile) return;
+    setLoading(true);
+    try {
+      await subscribeToPushNotifications(profile.id);
+      alert("Notifications enabled! 🔔");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      alert(`Error enabling notifications: ${message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -73,6 +88,24 @@ export default function Settings() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Notifications Section */}
+        <div className="sketched-box bg-white/80 backdrop-blur-sm">
+          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Bell size={20} /> Notifications
+          </h2>
+          <p className="text-sm opacity-60 mb-4">
+            Get notified when your partner sends a puzzle or if you forget to
+            send one!
+          </p>
+          <button
+            onClick={handleEnableNotifications}
+            disabled={loading}
+            className="w-full sketched-btn bg-accent-yellow text-ink font-bold hover:brightness-95 transition-all"
+          >
+            {loading ? "Enabling..." : "Enable Push Notifications 🔔"}
+          </button>
         </div>
 
         {/* Actions Section */}
