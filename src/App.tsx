@@ -14,6 +14,7 @@ import Dashboard from "./pages/Dashboard";
 import SetPuzzle from "./pages/SetPuzzle";
 import Game from "./pages/Game";
 import Settings from "./pages/Settings";
+import Favorites from "./pages/Favorites";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -69,6 +70,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Settings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/favorites"
+        element={
+          <ProtectedRoute>
+            <Favorites />
           </ProtectedRoute>
         }
       />

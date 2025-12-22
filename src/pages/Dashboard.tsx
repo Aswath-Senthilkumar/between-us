@@ -18,6 +18,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import type { Puzzle, PartnerRequest } from "../types";
 import OnboardingTour from "../components/OnboardingTour";
+import PuzzleCard from "../components/PuzzleCard";
 import type { Step } from "react-joyride";
 import { getLocalDate } from "../utils/date";
 import PageLayout from "../components/PageLayout";
@@ -62,16 +63,99 @@ const DASHBOARD_STEPS: Step[] = [
     placement: "top",
   },
   {
+    target: ".tour-favorites",
+    content: "Save your favorite messages and puzzles here! ❤️",
+    placement: "left",
+  },
+  {
     target: ".tour-settings",
     content:
       "Settings are tucked away here if you need to manage your account.",
     placement: "left",
+  },
+  {
+    target: "body",
+    content: (
+      <div className="text-center">
+        <h3>Let's Play! 🚀</h3>
+        <p>You're all set to start your daily ritual.</p>
+      </div>
+    ),
+  },
+];
+
+const FAVORITES_STEPS: Step[] = [
+  {
+    target: ".tour-favorites",
+    content: (
+      <div className="text-center">
+        <h3>New Feature! ❤️</h3>
+        <p>Save your favorite messages and puzzles here.</p>
+      </div>
+    ),
+    placement: "left",
+    disableBeacon: true,
   },
 ];
 
 export default function Dashboard() {
   const { profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
+
+  // Onboarding Logic
+  const [runTour, setRunTour] = useState(false);
+  const [tourSteps, setTourSteps] = useState<Step[]>([]);
+  const [tourMode, setTourMode] = useState<"onboarding" | "favorites" | null>(
+    null
+  );
+
+  useEffect(() => {
+    if (!profile) return;
+
+    // 1. New User: Full Tour
+    if (!profile.has_seen_onboarding) {
+      setTourSteps(DASHBOARD_STEPS);
+      setTourMode("onboarding");
+      setRunTour(true);
+      return;
+    }
+
+    // 2. Existing User: Check Features
+    const seen = profile.seen_features || [];
+    if (!seen.includes("favorites")) {
+      setTourSteps(FAVORITES_STEPS);
+      setTourMode("favorites");
+      setRunTour(true);
+    }
+  }, [profile]);
+
+  const handleTourFinish = async () => {
+    setRunTour(false);
+    if (!profile || !tourMode) return;
+
+    if (tourMode === "onboarding") {
+      // Mark onboarding done AND favorites seen
+      await supabase
+        .from("profiles")
+        .update({
+          has_seen_onboarding: true,
+          seen_features: ["favorites"],
+        })
+        .eq("id", profile.id);
+    } else if (tourMode === "favorites") {
+      // Mark favorites seen
+      const currentSeen = profile.seen_features || [];
+      const newSeen = [...currentSeen, "favorites"];
+
+      await supabase
+        .from("profiles")
+        .update({
+          seen_features: newSeen,
+        })
+        .eq("id", profile.id);
+    }
+    refreshProfile();
+  };
 
   // Tabs state
   const [activeTab, setActiveTab] = useState<"received" | "sent">("received");
@@ -101,6 +185,52 @@ export default function Dashboard() {
   // Swipe Handlers
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+  // Favorites State
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+
+  const fetchFavorites = useCallback(async () => {
+    if (!profile?.id) return;
+    const { data } = await supabase
+      .from("favorites")
+      .select("puzzle_id")
+      .eq("user_id", profile.id);
+    if (data) {
+      setFavoriteIds(new Set(data.map((f) => f.puzzle_id)));
+    }
+  }, [profile?.id]);
+
+  useEffect(() => {
+    fetchFavorites();
+  }, [fetchFavorites]);
+
+  const handleToggleFavorite = async (
+    e: React.MouseEvent,
+    puzzleId: string
+  ) => {
+    e.stopPropagation();
+    const isFav = favoriteIds.has(puzzleId);
+
+    // Optimistic Update
+    setFavoriteIds((prev) => {
+      const next = new Set(prev);
+      if (isFav) next.delete(puzzleId);
+      else next.add(puzzleId);
+      return next;
+    });
+
+    if (isFav) {
+      await supabase
+        .from("favorites")
+        .delete()
+        .eq("user_id", profile!.id)
+        .eq("puzzle_id", puzzleId);
+    } else {
+      await supabase
+        .from("favorites")
+        .insert({ user_id: profile!.id, puzzle_id: puzzleId });
+    }
+  };
 
   const ITEMS_PER_PAGE = 10;
 
@@ -612,9 +742,11 @@ export default function Dashboard() {
       className="flex flex-col max-w-md mx-auto p-4 overflow-x-hidden"
     >
       <OnboardingTour
-        run={true}
-        steps={DASHBOARD_STEPS}
+        run={runTour}
+        steps={tourSteps}
+        onFinish={handleTourFinish}
         onStepChange={(data) => {
+          if (tourMode !== "onboarding") return;
           const { index, type } = data;
 
           // Sync tabs with steps using step:before (fires on entering the step)
@@ -634,6 +766,12 @@ export default function Dashboard() {
           }
         }}
       />
+      <div className="absolute top-4 right-16 z-10 tour-favorites">
+        <Heart
+          className="wobbly-icon w-8 h-8 text-ink cursor-pointer hover:scale-110 transition-transform hover:text-accent-pink"
+          onClick={() => navigate("/favorites")}
+        />
+      </div>
       <div className="absolute top-4 right-4 z-10 tour-settings">
         <Settings
           className="wobbly-icon w-8 h-8 text-ink cursor-pointer hover:rotate-12 transition-transform"
@@ -845,66 +983,16 @@ export default function Dashboard() {
               </div>
             ) : (
               activePuzzles.map((puzzle) => (
-                <div
+                <PuzzleCard
                   key={puzzle.id}
+                  puzzle={puzzle}
+                  type={activeTab}
+                  isFavorite={favoriteIds.has(puzzle.id)}
+                  onToggleFavorite={(e) => handleToggleFavorite(e, puzzle.id)}
                   onClick={() => {
-                    if (activeTab === "received") {
-                      navigate(`/solve?date=${puzzle.date}`);
-                    }
+                    navigate(`/solve?date=${puzzle.date}&type=${activeTab}`);
                   }}
-                  className={`sketched-box p-4 flex items-center justify-between transition-colors ${
-                    puzzle.date === formattedDate
-                      ? "border-2 border-ink"
-                      : "border border-gray-300 opacity-80"
-                  } ${
-                    activeTab === "received"
-                      ? "cursor-pointer hover:bg-gray-50"
-                      : ""
-                  }`}
-                >
-                  <div>
-                    <div className="font-bold text-lg">{puzzle.date}</div>
-                    <div className="text-sm opacity-60">
-                      {activeTab === "sent" ? (
-                        <div className="flex flex-col gap-1 mt-1">
-                          <span className="font-bold">
-                            Word: {puzzle.target_word}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="font-bold">Message:</span>
-                            <span className="italic">
-                              "{puzzle.secret_message}"
-                            </span>
-                          </span>
-                        </div>
-                      ) : puzzle.is_solved ? (
-                        puzzle.secret_message
-                      ) : puzzle.guesses && puzzle.guesses.length >= 6 ? (
-                        puzzle.message_revealed ? (
-                          "Message Unlocked"
-                        ) : puzzle.message_requested ? (
-                          "Failed • Request Sent"
-                        ) : (
-                          "Failed"
-                        )
-                      ) : (
-                        "Unsolved"
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    {puzzle.is_solved || puzzle.message_revealed ? (
-                      <Unlock
-                        className="text-green-600 wobbly-icon"
-                        size={20}
-                      />
-                    ) : puzzle.guesses && puzzle.guesses.length >= 6 ? (
-                      <Lock className="text-red-500 wobbly-icon" size={20} />
-                    ) : (
-                      <Lock className="text-gray-400" size={20} />
-                    )}
-                  </div>
-                </div>
+                />
               ))
             )}
           </div>

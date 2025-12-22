@@ -32,12 +32,17 @@ export default function Game() {
       // Use query param date OR today's date
       const targetDate = dateParam || getLocalDate();
 
-      const { data } = await supabase
-        .from("puzzles")
-        .select("*")
-        .in("solver_id", [profile.id])
-        .eq("date", targetDate)
-        .single();
+      const typeParam = searchParams.get("type");
+
+      let query = supabase.from("puzzles").select("*").eq("date", targetDate);
+
+      if (typeParam === "sent") {
+        query = query.eq("setter_id", profile.id);
+      } else {
+        query = query.eq("solver_id", profile.id);
+      }
+
+      const { data } = await query.single();
 
       if (data) {
         setPuzzle(data);
@@ -76,7 +81,7 @@ export default function Game() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [profile, dateParam]);
+  }, [profile, dateParam, searchParams]);
 
   const saveProgress = useCallback(
     async (newGuesses: string[], solved: boolean) => {
@@ -208,6 +213,115 @@ export default function Game() {
     if (color === "yellow") return "bg-accent-yellow border-ink";
     return "bg-gray-200 border-gray-400 opacity-50";
   };
+
+  const handleGrantUnlock = async () => {
+    if (!puzzle) return;
+    const { error } = await supabase
+      .from("puzzles")
+      .update({ message_revealed: true })
+      .eq("id", puzzle.id);
+
+    if (!error) {
+      setPuzzle({ ...puzzle, message_revealed: true });
+    }
+  };
+
+  const isSetter = puzzle && profile && puzzle.setter_id === profile.id;
+
+  if (isSetter && puzzle) {
+    return (
+      <PageLayout theme="white" className="flex flex-col max-w-md mx-auto p-4">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={() => navigate("/")} className="p-2">
+            <ArrowLeft />
+          </button>
+          <div className="text-center">
+            <h1 className="text-xl m-0">Sent Puzzle</h1>
+            <p className="text-sm opacity-60 m-0">{puzzle.date}</p>
+          </div>
+          <div className="w-8"></div>
+        </div>
+
+        {/* Info Box */}
+        <div className="sketched-box bg-white/60 mb-6 space-y-3">
+          <div>
+            <span className="font-bold block text-sm opacity-60">
+              TARGET WORD
+            </span>
+            <span className="font-mono text-xl tracking-widest font-bold">
+              {puzzle.target_word}
+            </span>
+          </div>
+          {puzzle.hint && (
+            <div>
+              <span className="font-bold block text-sm opacity-60">HINT</span>
+              <span className="text-accent-blue font-bold">{puzzle.hint}</span>
+            </div>
+          )}
+          <div>
+            <span className="font-bold block text-sm opacity-60">
+              SECRET MESSAGE
+            </span>
+            <div className="bg-white p-3 rounded border border-gray-200 mt-1 font-hand text-lg">
+              {puzzle.secret_message}
+            </div>
+          </div>
+        </div>
+
+        {/* Unlock Action */}
+        {puzzle.message_requested && !puzzle.message_revealed && (
+          <div className="sketched-box bg-accent-yellow mb-6 text-center animate-pulse">
+            <p className="font-bold mb-3">Partner is asking for help! 🆘</p>
+            <button
+              onClick={handleGrantUnlock}
+              className="sketched-btn bg-accent-green text-sm w-full py-2"
+            >
+              Grant Access to Message
+            </button>
+          </div>
+        )}
+        {puzzle.message_revealed && (
+          <div className="text-center text-sm text-green-600 font-bold mb-6 bg-green-50 p-2 rounded border border-green-200">
+            ✓ You revealed the message.
+          </div>
+        )}
+
+        {/* Partner's Grid View */}
+        <div className="flex-grow flex flex-col items-center">
+          <div className="text-center mb-2 font-bold opacity-50 text-xs tracking-widest uppercase">
+            Partner's Progress
+          </div>
+          <div className="flex flex-col gap-2 opacity-80 pointer-events-none">
+            {[0, 1, 2, 3, 4, 5].map((rowIndex) => {
+              const guess = guesses[rowIndex] || "";
+              return (
+                <div key={rowIndex} className="flex gap-2">
+                  {[0, 1, 2, 3, 4].map((colIndex) => (
+                    <div
+                      key={colIndex}
+                      className={`
+                           w-10 h-10 
+                           border-2 flex items-center justify-center 
+                           text-xl font-bold rounded-sm
+                           ${getCellClass(
+                             guess[colIndex] || "",
+                             colIndex,
+                             rowIndex
+                           )}
+                         `}
+                    >
+                      {guess[colIndex]}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </PageLayout>
+    );
+  }
 
   return (
     <PageLayout theme="pink" className="flex flex-col max-w-md mx-auto p-4">

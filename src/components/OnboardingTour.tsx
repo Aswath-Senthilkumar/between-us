@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import Joyride, { STATUS } from "react-joyride";
 import type { Step, CallBackProps } from "react-joyride";
 import { useAuth } from "../context/useAuth";
-import { supabase } from "../lib/supabase";
 
 // Custom styles for sketched/wobbly look
 const tourStyles = {
@@ -58,11 +57,11 @@ export default function OnboardingTour({
   onFinish,
   onStepChange,
 }: OnboardingTourProps) {
-  const { profile, refreshProfile } = useAuth();
+  const { profile } = useAuth();
   const [runTour, setRunTour] = useState(false);
 
   useEffect(() => {
-    if (run && profile && !profile.has_seen_onboarding) {
+    if (run && profile) {
       // Delay slightly to avoid synchronous state update warning during render
       const timer = setTimeout(() => {
         setRunTour(true);
@@ -79,19 +78,6 @@ export default function OnboardingTour({
 
     if (finishedStatuses.includes(status)) {
       setRunTour(false);
-
-      if (profile) {
-        // Update DB
-        const { error } = await supabase
-          .from("profiles")
-          .update({ has_seen_onboarding: true })
-          .eq("id", profile.id);
-
-        if (!error) {
-          refreshProfile(); // Update local context
-        }
-      }
-
       if (onFinish) onFinish();
     }
   };

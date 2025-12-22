@@ -24,6 +24,7 @@ export default function SetPuzzle() {
     try {
       const today = getLocalDate();
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await withTimeout<any>(
         supabase.from("puzzles").insert({
           date: today,
