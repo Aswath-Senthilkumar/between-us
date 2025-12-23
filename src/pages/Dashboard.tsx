@@ -782,6 +782,7 @@ export default function Dashboard() {
       <div className="text-center mb-6 mt-4">
         <h1 className="text-3xl mb-1">Hello, {profile.username || "Love"}</h1>
         <p className="opacity-60 font-mono text-sm">{formattedDate}</p>
+        <p className="opacity-30 font-mono text-xs mt-1">v1.1</p>
       </div>
 
       {/* Tabs */}
