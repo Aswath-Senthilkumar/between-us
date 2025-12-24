@@ -13,14 +13,20 @@ export default function SetPuzzle() {
   const [word, setWord] = useState("");
   const [hint, setHint] = useState("");
   const [message, setMessage] = useState("");
+  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile?.partner_id) return;
     if (word.length !== 5) return alert("Word must be 5 letters");
+    setShowConfirm(true);
+  };
 
+  const handleLockIn = async () => {
+    if (!profile) return;
     setLoading(true);
+    setShowConfirm(false);
     try {
       const today = getLocalDate();
 
@@ -49,7 +55,10 @@ export default function SetPuzzle() {
   };
 
   return (
-    <PageLayout theme="pink" className="p-4 max-w-md mx-auto flex flex-col">
+    <PageLayout
+      theme="pink"
+      className="p-4 max-w-md mx-auto flex flex-col relative"
+    >
       <div className="flex items-center gap-4 mb-6">
         <button
           onClick={() => navigate(-1)}
@@ -60,7 +69,7 @@ export default function SetPuzzle() {
         <h1>Set Daily Puzzle</h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6 flex-grow">
+      <form onSubmit={handlePreSubmit} className="space-y-6 flex-grow">
         <div className="sketched-box bg-white/80 backdrop-blur-sm">
           <label className="block font-bold mb-2">THE WORD (5 LETTERS)</label>
           <input
@@ -106,6 +115,33 @@ export default function SetPuzzle() {
           {loading ? "Locking in..." : "Lock In Puzzle"}
         </button>
       </form>
+
+      {/* Confirmation Modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="sketched-box bg-white w-full max-w-sm p-6 animate-in zoom-in-95 duration-200">
+            <h3 className="text-xl font-bold mb-4">Are you sure?</h3>
+            <p className="mb-6 opacity-70">
+              You won't be able to edit this puzzle once you lock it in!
+            </p>
+
+            <div className="flex gap-4">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="flex-1 py-3 font-bold border-2 border-ink rounded-lg hover:bg-gray-100"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={handleLockIn}
+                className="flex-1 py-3 font-bold bg-accent-pink border-2 border-ink rounded-lg shadow-[2px_2px_0px_rgba(0,0,0,1)] active:translate-y-[2px] active:shadow-none transition-all"
+              >
+                Yes, Lock In!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PageLayout>
   );
 }
