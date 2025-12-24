@@ -7,7 +7,35 @@ import type { Puzzle } from "../types";
 import { getLocalDate } from "../utils/date";
 import PageLayout from "../components/PageLayout";
 
-const LETTERS = "QWERTYUIOPASDFGHJKLZXCVBNM".split("");
+// Helper Component for Keys
+const KeyButton = ({
+  char,
+  status,
+  onClick,
+}: {
+  char: string;
+  status: "correct" | "present" | "absent" | "default";
+  onClick: () => void;
+}) => {
+  let className =
+    "flex-1 h-16 flex items-center justify-center border border-ink rounded font-bold text-lg transition-all active:scale-95 select-none";
+
+  if (status === "correct") className += " bg-accent-green text-ink";
+  else if (status === "present") className += " bg-accent-yellow text-ink";
+  else if (status === "absent")
+    className += " bg-gray-300 text-gray-500 border-gray-400 opacity-50";
+  else className += " bg-white hover:bg-gray-50";
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={status === "absent"}
+      className={className}
+    >
+      {char}
+    </button>
+  );
+};
 
 export default function Game() {
   const { profile } = useAuth();
@@ -212,6 +240,29 @@ export default function Game() {
     if (color === "green") return "bg-accent-green border-ink";
     if (color === "yellow") return "bg-accent-yellow border-ink";
     return "bg-gray-200 border-gray-400 opacity-50";
+  };
+
+  // Keyboard Status Logic
+  const getKeyStatus = (key: string) => {
+    if (!puzzle) return "default";
+    let status: "correct" | "present" | "absent" | "default" = "default";
+
+    for (const guess of guesses) {
+      // If letter is not in word at all, mark absent
+      if (!puzzle.target_word.includes(key) && guess.includes(key)) {
+        return "absent";
+      }
+
+      // Check specific positions for Green/Yellow
+      for (let i = 0; i < 5; i++) {
+        const guessChar = guess[i];
+        if (guessChar === key) {
+          if (puzzle.target_word[i] === key) return "correct"; // Found a green, always return best status
+          status = "present"; // Found yellow, keep checking for green
+        }
+      }
+    }
+    return status;
   };
 
   const handleGrantUnlock = async () => {
@@ -426,28 +477,65 @@ export default function Game() {
       {/* Keyboard */}
       <div className="w-full">
         {gameStatus === "playing" && (
-          <div className="flex flex-wrap justify-center gap-1">
-            {LETTERS.map((char) => (
+          <div className="flex flex-col items-center gap-1.5 w-full max-w-lg mx-auto">
+            {/* Top Row */}
+            <div className="flex gap-1 w-full justify-center">
+              {"QWERTYUIOP".split("").map((char) => {
+                const status = getKeyStatus(char);
+                return (
+                  <KeyButton
+                    key={char}
+                    char={char}
+                    status={status}
+                    onClick={() => handleKeyPress(char)}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Middle Row */}
+            <div className="flex gap-1 w-[90%] justify-center">
+              {"ASDFGHJKL".split("").map((char) => {
+                const status = getKeyStatus(char);
+                return (
+                  <KeyButton
+                    key={char}
+                    char={char}
+                    status={status}
+                    onClick={() => handleKeyPress(char)}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Bottom Row */}
+            <div className="flex gap-1 w-full justify-center">
               <button
-                key={char}
-                onClick={() => handleKeyPress(char)}
-                className="p-2 sm:p-3 bg-white border border-ink rounded font-bold text-sm sm:text-base hover:bg-gray-100 active:scale-95 transition-transform"
+                onClick={() => handleKeyPress("ENTER")}
+                className="flex-1 max-w-[15%] h-16 flex items-center justify-center bg-gray-200 border border-ink rounded font-bold text-xs sm:text-sm active:scale-95 transition-transform"
               >
-                {char}
+                ENTER
               </button>
-            ))}
-            <button
-              onClick={() => handleKeyPress("BACKSPACE")}
-              className="p-2 px-4 bg-gray-200 border border-ink rounded"
-            >
-              ⌫
-            </button>
-            <button
-              onClick={() => handleKeyPress("ENTER")}
-              className="p-2 px-4 bg-accent-green border border-ink rounded"
-            >
-              ✓
-            </button>
+
+              {"ZXCVBNM".split("").map((char) => {
+                const status = getKeyStatus(char);
+                return (
+                  <KeyButton
+                    key={char}
+                    char={char}
+                    status={status}
+                    onClick={() => handleKeyPress(char)}
+                  />
+                );
+              })}
+
+              <button
+                onClick={() => handleKeyPress("BACKSPACE")}
+                className="flex-1 max-w-[15%] h-16 flex items-center justify-center bg-gray-200 border border-ink rounded font-bold text-xs sm:text-sm active:scale-95 transition-transform"
+              >
+                ⌫
+              </button>
+            </div>
           </div>
         )}
       </div>
