@@ -689,7 +689,16 @@ export default function Dashboard() {
   const activePuzzles =
     activeTab === "received" ? receivedPuzzles : sentPuzzles;
   const currentPage = activeTab === "received" ? receivedPage : sentPage;
-  const todayPuzzle = activePuzzles.find((p) => p.date === formattedDate);
+
+  // Timezone Handling:
+  // Always treat the most recently received puzzle as the "Active" one to play.
+  // This allows receiving "tomorrow's" puzzle (from a partner ahead in time) and playing it immediately as "Today".
+  const latestReceived = receivedPuzzles[0]; // Ordered by date desc
+
+  const displayPuzzle =
+    activeTab === "received"
+      ? latestReceived // Simply the latest one available
+      : activePuzzles.find((p) => p.date === formattedDate); // For Sent, show what I sent TODAY
 
   const minSwipeDistance = 50;
 
@@ -836,36 +845,39 @@ export default function Dashboard() {
               </div>
             ) : activeTab === "received" ? (
               // RECEIVED TAB ACTION
-              !todayPuzzle ? (
+              !displayPuzzle ? (
                 <div className="sketched-box bg-white p-6 text-center opacity-80">
-                  <p>No puzzle received for today yet.</p>
+                  <p>No puzzle received yet.</p>
                   <p className="text-sm opacity-60 mt-2">
                     Remind your partner!
                   </p>
                 </div>
-              ) : todayPuzzle.is_solved ? (
+              ) : displayPuzzle.is_solved ? (
                 <div
-                  onClick={() => navigate("/solve")}
+                  onClick={() => navigate(`/solve?date=${displayPuzzle.date}`)}
                   className="sketched-box bg-accent-green/30 w-full text-center p-6 border-dashed cursor-pointer hover:scale-[1.02] transition-transform"
                 >
                   <h3 className="text-lg font-bold mb-2">
-                    Today's Puzzle Solved!
+                    Latest Puzzle Solved!
                   </h3>
-                  <p>Message: "{todayPuzzle.secret_message}"</p>
+                  <p>Message: "{displayPuzzle.secret_message}"</p>
                   <p className="text-xs opacity-50 mt-2">(Tap to view board)</p>
                 </div>
-              ) : todayPuzzle.guesses && todayPuzzle.guesses.length >= 6 ? (
-                todayPuzzle.message_viewed && todayPuzzle.message_revealed ? (
+              ) : displayPuzzle.guesses && displayPuzzle.guesses.length >= 6 ? (
+                displayPuzzle.message_viewed &&
+                displayPuzzle.message_revealed ? (
                   // Message Viewed: Show content like solved card
                   <div
-                    onClick={() => navigate("/solve")}
+                    onClick={() =>
+                      navigate(`/solve?date=${displayPuzzle.date}`)
+                    }
                     className="sketched-box bg-accent-green/30 w-full text-center p-6 border-dashed cursor-pointer hover:scale-[1.02] transition-transform"
                   >
                     <div className="flex items-center justify-center gap-2 mb-2 text-green-700 font-bold">
                       <Unlock size={20} />
                       <h3 className="text-lg m-0">Message Unlocked!</h3>
                     </div>
-                    <p>"{todayPuzzle.secret_message}"</p>
+                    <p>"{displayPuzzle.secret_message}"</p>
                     <p className="text-xs opacity-50 mt-2">
                       (Tap to view board)
                     </p>
@@ -873,10 +885,12 @@ export default function Dashboard() {
                 ) : (
                   // Not Viewed yet or just failed: Show Status Card
                   <div
-                    onClick={() => navigate("/solve")}
+                    onClick={() =>
+                      navigate(`/solve?date=${displayPuzzle.date}`)
+                    }
                     className="sketched-box bg-gray-100 w-full text-center p-6 border-dashed cursor-pointer hover:scale-[1.02] transition-transform"
                   >
-                    {todayPuzzle.message_revealed ? (
+                    {displayPuzzle.message_revealed ? (
                       <>
                         <h3 className="text-lg font-bold mb-2 text-green-600">
                           Message Unlocked! 🔓
@@ -890,7 +904,7 @@ export default function Dashboard() {
                         <h3 className="text-lg font-bold mb-2 text-red-500">
                           Puzzle Failed
                         </h3>
-                        {todayPuzzle.message_requested ? (
+                        {displayPuzzle.message_requested ? (
                           <div className="text-accent-blue font-bold mb-1 animate-pulse">
                             Request Sent ⏳
                           </div>
@@ -905,15 +919,17 @@ export default function Dashboard() {
                   </div>
                 )
               ) : (
-                <a
-                  href="/solve"
-                  className="sketched-btn w-full text-center py-6 text-xl bg-accent-pink animate-pulse block"
-                >
-                  Play Daily Puzzle 🎮
-                </a>
+                <div className="relative">
+                  <a
+                    href={`/solve?date=${displayPuzzle.date}`}
+                    className="sketched-btn w-full text-center py-6 text-xl bg-accent-pink animate-pulse block"
+                  >
+                    Play Daily Puzzle 🎮
+                  </a>
+                </div>
               )
             ) : // SENT TAB ACTION
-            !todayPuzzle ? (
+            !displayPuzzle ? (
               <a
                 href="/set"
                 className="sketched-btn w-full text-center py-6 text-xl bg-accent-blue block"
@@ -924,30 +940,30 @@ export default function Dashboard() {
               <div className="sketched-box bg-accent-blue/20 w-full text-center p-6">
                 <h3 className="text-lg font-bold mb-1">You set the word!</h3>
                 <div className="text-2xl font-bold tracking-widest mb-2 font-mono">
-                  {todayPuzzle.target_word}
+                  {displayPuzzle.target_word}
                 </div>
                 <p className="opacity-70 text-sm mb-2">
-                  {todayPuzzle.is_solved
+                  {displayPuzzle.is_solved
                     ? "Partner solved it! 🎉"
-                    : todayPuzzle.guesses && todayPuzzle.guesses.length >= 6
+                    : displayPuzzle.guesses && displayPuzzle.guesses.length >= 6
                     ? "Partner failed to solve."
                     : "Waiting for partner to solve..."}
                 </p>
 
                 {/* Unlock Option for Failed Puzzles */}
-                {!todayPuzzle.is_solved &&
-                  todayPuzzle.guesses &&
-                  todayPuzzle.guesses.length >= 6 &&
-                  (todayPuzzle.message_requested ||
-                    todayPuzzle.message_revealed) && (
+                {!displayPuzzle.is_solved &&
+                  displayPuzzle.guesses &&
+                  displayPuzzle.guesses.length >= 6 &&
+                  (displayPuzzle.message_requested ||
+                    displayPuzzle.message_revealed) && (
                     <div className="mt-4 pt-4 border-t border-ink/10">
-                      {todayPuzzle.message_revealed ? (
+                      {displayPuzzle.message_revealed ? (
                         <div className="flex items-center justify-center gap-2 text-green-700 font-bold">
                           <Unlock size={16} /> Message Unlocked
                         </div>
                       ) : (
                         <button
-                          onClick={() => handleUnlockMessage(todayPuzzle.id)}
+                          onClick={() => handleUnlockMessage(displayPuzzle.id)}
                           className="flex items-center justify-center gap-2 mx-auto sketched-btn bg-red-100 border-red-300 hover:bg-red-200 text-red-800 text-sm py-2 px-4"
                         >
                           <span className="animate-pulse">
