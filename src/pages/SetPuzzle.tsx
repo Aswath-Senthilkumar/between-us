@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../context/useAuth";
@@ -14,12 +14,40 @@ export default function SetPuzzle() {
   const [hint, setHint] = useState("");
   const [message, setMessage] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showDuplicateError, setShowDuplicateError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [usedWords, setUsedWords] = useState<string[]>([]);
+  const [checkingHistory, setCheckingHistory] = useState(true);
+
+  // Fetch previously used words on mount
+  useEffect(() => {
+    if (!profile) return;
+    const fetchHistory = async () => {
+      const { data } = await supabase
+        .from("puzzles")
+        .select("target_word")
+        .eq("setter_id", profile.id);
+
+      if (data) {
+        setUsedWords(data.map((p) => p.target_word));
+      }
+      setCheckingHistory(false);
+    };
+    fetchHistory();
+  }, [profile]);
 
   const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile?.partner_id) return;
     if (word.length !== 5) return alert("Word must be 5 letters");
+
+    if (checkingHistory)
+      return alert("Still checking history... please wait a sec!");
+    if (usedWords.includes(word.toUpperCase())) {
+      setShowDuplicateError(true);
+      return;
+    }
+
     setShowConfirm(true);
   };
 
@@ -139,6 +167,32 @@ export default function SetPuzzle() {
                 Yes, Lock In!
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate Word Modal */}
+      {showDuplicateError && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="sketched-box bg-white w-full max-w-sm p-6 animate-in zoom-in-95 duration-200 text-center">
+            <h3 className="text-xl font-bold mb-2 text-red-500">
+              Oops! Used Word 🙈
+            </h3>
+            <p className="mb-6 opacity-70">
+              You've already used{" "}
+              <span className="font-bold">"{word.toUpperCase()}"</span> in a
+              past puzzle.
+              <br />
+              <br />
+              Please choose a new word to keep it fun!
+            </p>
+
+            <button
+              onClick={() => setShowDuplicateError(false)}
+              className="w-full py-3 font-bold border-2 border-ink rounded-lg hover:bg-gray-100"
+            >
+              Okay, I'll change it
+            </button>
           </div>
         </div>
       )}
