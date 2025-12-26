@@ -720,7 +720,9 @@ export default function Dashboard() {
 
   const displayPuzzle =
     activeTab === "received"
-      ? latestReceived // Simply the latest one available
+      ? latestReceived && latestReceived.date >= formattedDate
+        ? latestReceived
+        : undefined
       : activePuzzles.find((p) => p.date === formattedDate); // For Sent, show what I sent TODAY
 
   const minSwipeDistance = 50;
