@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "../context/useAuth";
 import { supabase } from "../lib/supabase";
 import {
@@ -203,6 +203,29 @@ export default function Dashboard() {
   useEffect(() => {
     fetchFavorites();
   }, [fetchFavorites]);
+
+  // Scroll Smudge Logic
+  const historyRef = useRef<HTMLDivElement>(null);
+  const [canScrollTop, setCanScrollTop] = useState(false);
+  const [canScrollBottom, setCanScrollBottom] = useState(false);
+
+  const checkScroll = useCallback(() => {
+    if (!historyRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = historyRef.current;
+
+    // Tolerance of 2px
+    setCanScrollTop(scrollTop > 2);
+    setCanScrollBottom(scrollTop + clientHeight < scrollHeight - 2);
+  }, []);
+
+  // Check scroll on tab change or data load
+  useEffect(() => {
+    // Small timeout to allow render
+    const t = setTimeout(() => {
+      checkScroll();
+    }, 100);
+    return () => clearTimeout(t);
+  }, [activeTab, receivedPuzzles, sentPuzzles, checkScroll]);
 
   const handleToggleFavorite = async (
     e: React.MouseEvent,
@@ -980,43 +1003,61 @@ export default function Dashboard() {
         </div>
 
         {/* History List */}
-        <div className="tour-history flex-grow flex flex-col min-h-0 overflow-y-auto pr-2 -mr-2">
-          <div
-            className="space-y-4 flex-grow animate-in fade-in duration-500"
-            key={`history-${activeTab}`}
-          >
-            <h3 className="font-bold opacity-50 text-sm tracking-widest uppercase">
-              {activeTab === "received" ? "History" : "Past Notes"}
-            </h3>
+        <div className="flex-grow flex flex-col min-h-0 relative">
+          <h3 className="font-bold opacity-50 text-sm tracking-widest uppercase mb-4">
+            {activeTab === "received" ? "History" : "Past Notes"}
+          </h3>
 
-            {(activeTab === "received" ? loadingReceived : loadingSent) &&
-            activePuzzles.length === 0 ? (
-              <div className="text-center py-10 opacity-50">
-                Loading history...
-              </div>
-            ) : activePuzzles.length === 0 ? (
-              <div className="text-center py-10 opacity-40">
-                No records found.
-              </div>
-            ) : (
-              activePuzzles.map((puzzle) => (
-                <PuzzleCard
-                  key={puzzle.id}
-                  puzzle={puzzle}
-                  type={activeTab}
-                  isFavorite={favoriteIds.has(puzzle.id)}
-                  onToggleFavorite={(e) => handleToggleFavorite(e, puzzle.id)}
-                  onClick={() => {
-                    navigate(`/solve?date=${puzzle.date}&type=${activeTab}`);
-                  }}
-                />
-              ))
-            )}
+          <div
+            ref={historyRef}
+            onScroll={checkScroll}
+            className="tour-history flex-grow overflow-y-auto pr-2 -mr-2"
+            style={{
+              maskImage: `linear-gradient(to bottom, ${
+                canScrollTop ? "transparent" : "black"
+              } 0%, black 40px, black calc(100% - 40px), ${
+                canScrollBottom ? "transparent" : "black"
+              } 100%)`,
+              WebkitMaskImage: `linear-gradient(to bottom, ${
+                canScrollTop ? "transparent" : "black"
+              } 0%, black 40px, black calc(100% - 40px), ${
+                canScrollBottom ? "transparent" : "black"
+              } 100%)`,
+            }}
+          >
+            <div
+              className="space-y-4 flex-grow animate-in fade-in duration-500 pb-4"
+              key={`history-${activeTab}`}
+            >
+              {(activeTab === "received" ? loadingReceived : loadingSent) &&
+              activePuzzles.length === 0 ? (
+                <div className="text-center py-10 opacity-50">
+                  Loading history...
+                </div>
+              ) : activePuzzles.length === 0 ? (
+                <div className="text-center py-10 opacity-40">
+                  No records found.
+                </div>
+              ) : (
+                activePuzzles.map((puzzle) => (
+                  <PuzzleCard
+                    key={puzzle.id}
+                    puzzle={puzzle}
+                    type={activeTab}
+                    isFavorite={favoriteIds.has(puzzle.id)}
+                    onToggleFavorite={(e) => handleToggleFavorite(e, puzzle.id)}
+                    onClick={() => {
+                      navigate(`/solve?date=${puzzle.date}&type=${activeTab}`);
+                    }}
+                  />
+                ))
+              )}
+            </div>
           </div>
         </div>
 
         {/* Pagination */}
-        <div className="flex justify-between items-center mt-6 pt-4 border-t border-ink/10">
+        <div className="flex justify-between items-center mt-2 pt-2 border-t border-ink/10">
           <button
             onClick={() => {
               if (activeTab === "received")
