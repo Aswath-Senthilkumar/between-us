@@ -748,7 +748,7 @@ export default function Dashboard() {
   return (
     <PageLayout
       theme="blue"
-      className="flex flex-col max-w-md mx-auto p-4 overflow-x-hidden"
+      className="flex flex-col max-w-md mx-auto p-4 h-full overflow-hidden"
     >
       <OnboardingTour
         run={runTour}
@@ -980,7 +980,7 @@ export default function Dashboard() {
         </div>
 
         {/* History List */}
-        <div className="tour-history flex-grow flex flex-col">
+        <div className="tour-history flex-grow flex flex-col min-h-0 overflow-y-auto pr-2 -mr-2">
           <div
             className="space-y-4 flex-grow animate-in fade-in duration-500"
             key={`history-${activeTab}`}
